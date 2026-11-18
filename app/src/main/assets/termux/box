@@ -158,9 +158,10 @@ setpass() {
 case "${1:-status}" in
   start)   start ;;
   stop)    stop ;;
+  restart) stop; sleep 1; start ;;
   status)  status ;;
   log)     shift; log "$@" ;;
   token)   shift; token "${1:-}" ;;
   setpass) shift; setpass "$1" ;;
-  *) echo "用法: box start|stop|status|log [行数]|token|setpass 新密码"; exit 1 ;;
+  *) echo "用法: box start|stop|restart|status|log [行数]|token|setpass 新密码"; exit 1 ;;
 esac
