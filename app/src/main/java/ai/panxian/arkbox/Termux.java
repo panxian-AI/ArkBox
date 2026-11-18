@@ -53,7 +53,7 @@ final class Termux {
             String scripts = ""
                     // 六个 Termux 侧脚本全部从 assets 端点拿（bootstrap 自带 curl 或用 arknet 兜底）
                     + " mkdir -p \"$HOME/.arkbox\"; all=1"
-                    + "; for f in arknet.sh install.sh astr qq arklink creds.py setpw.py; do"
+                    + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py; do"
                     + " if command -v curl >/dev/null 2>&1; then"
                     + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\""
                     + "; else bash \"$HOME/.arkbox/arknet.sh\" GET \"$ARKBOX_LOCAL/a/termux/$f\""
@@ -61,8 +61,8 @@ final class Termux {
                     + "; if [ -s \"$HOME/.arkbox/$f\" ]; then echo \"✓ $f\""
                     + "; else all=0; echo \"✗ $f 没拿到\"; fi; done"
                     + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
-                    + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/arklink\" 2>/dev/null"
-                    + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\"; done"
+                    + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/box\" 2>/dev/null"
+                    + "; for c in astr qq box; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\"; done"
                     + "; if [ \"$all\" = 1 ]; then echo \"✓ 脚本就位，启动安装器\""
                     // setsid 脱离 App 进程组：App 被杀安装继续
                     + "; setsid bash \"$HOME/.arkbox/install.sh\" </dev/null >/dev/null 2>&1 &"

@@ -117,6 +117,9 @@ final class Box {
      * 这里只做兜底建目录，不猜内容）。
      */
     static void seedOneBotConfig(Context ctx) {
-        Termux.send(ctx, "~/.arkbox/proot-run.sh /bin/bash -c 'mkdir -p /root/.snowlink/config' ", 30);
+        // proot-run.sh 是安装器 2/9 步（解完 rootfs 后）才生成的。没装完就调会
+        // 报 "No such file or directory"，日志里一片假错——先判存在再调。
+        Termux.send(ctx, "if [ -x \"$HOME/.arkbox/proot-run.sh\" ]; then "
+                + "~/.arkbox/proot-run.sh /bin/bash -c 'mkdir -p /root/.snowlink/config'; fi", 30);
     }
 }

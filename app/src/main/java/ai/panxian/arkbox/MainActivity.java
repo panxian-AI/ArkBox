@@ -243,11 +243,11 @@ public class MainActivity extends AppCompatActivity {
             Termux.send(this,
                     // 1) 先把 App 内置脚本刷新到 ~/.arkbox（发新版只装 APK 即生效，不用点安装/更新）
                     "mkdir -p \"$HOME/.arkbox\""
-                            + "; for f in arknet.sh install.sh astr qq arklink creds.py setpw.py; do"
+                            + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py; do"
                             + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; done"
                             + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
-                            + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/arklink\" 2>/dev/null"
-                            + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
+                            + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/box\" 2>/dev/null"
+                            + "; for c in astr qq box; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
                             // 2) 幂等拉起服务：装好的才起
                             + "; if [ -f \"$HOME/.arkbox/rootfs/root/AstrBot/main.py\" ]; then astr start; fi"
                             + "; if [ -f \"$HOME/.arkbox/rootfs/opt/QQ/qq\" ]; then qq start; fi",

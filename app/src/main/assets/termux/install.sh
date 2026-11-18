@@ -8,21 +8,20 @@
 #   ubuntu-rootfs.tar.gz   Ubuntu 24.04 base（约 30 MB）
 #   astrbot.tar.gz         AstrBot 源码（约 9 MB）
 #   linuxqq_arm64.deb      QQ NT arm64（约 208 MB，本机 QQ 用）
-#   napcat.zip             NapCat.Shell（本机 QQ 用）
-#   arklink.tar.gz         ArkLink 源码（本机 QQ 链路）
+#   （ArkLink/SnowLink 走 pip git 安装，不预置包）
 # 所以这个脚本在断网、GitHub 被墙的情况下也能装完。
 #
 # 设计要点：
 #   1. 所有输出（含报错）经 upload_lines 实时写 ~/.arkbox/install.log 并 POST 回 App
 #   2. 状态写 ~/.arkbox/state（status/step/desc/err），astr status 随时可查
-#   3. astr/qq/arklink 命令在最前面注册，装没装完 astr status 都能用
+#   3. astr/qq/box 命令在最前面注册，装没装完 astr status 都能用
 #   4. 失败不静默：state 里记 status=failed + 原因，进度条和 astr status 都能看到
 #   5. 安装是幂等的：重跑会复用已有的 rootfs / AstrBot / QQ，从断掉的地方接着装
 #
 # 手动跑也可以（没有 App 递的包就走镜像自己下）：
-#   bash install.sh              # 全量：AstrBot + 本机 QQ + ArkLink
+#   bash install.sh              # 全量：AstrBot + 本机 QQ + ArkLink/SnowLink
 #   bash install.sh --no-qq      # 只装 AstrBot（协议端在别处）
-#   bash install.sh --qq-only    # 只装/补 本机 QQ + ArkLink（AstrBot 已装好）
+#   bash install.sh --qq-only    # 只装/补 本机 QQ + ArkLink/SnowLink
 #   bash install.sh --no-mirror
 set -euo pipefail
 
@@ -37,7 +36,7 @@ SKIP_ASTR=0
 SKIP_QQ=0
 PY_INDEX="https://pypi.tuna.tsinghua.edu.cn/simple"
 ASTRBOT_REPO="https://github.com/AstrBotDevs/AstrBot.git"
-RAW_BASE="https://raw.githubusercontent.com/panxian-AI/ArkBox/main/termux"
+RAW_BASE="https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux"
 
 for arg in "$@"; do
   case "$arg" in
@@ -153,11 +152,15 @@ trap 'rm -rf "$LOCK"' EXIT
 # App 理论上已经把 astr/qq/arklink/creds.py 放进 ~/.arkbox/ 了；
 # 这里兜底：缺了就从 App 的本地服务 / GitHub raw 拉，然后全部链到 $PREFIX/bin。
 # 放在最前面意味着：哪怕后面任何一步失败，astr status 也已经能查状态了。
-step "0/9 预置控制命令（astr / qq / arklink）"
-for c in astr qq arklink creds.py; do
+step "0/9 预置控制命令（astr / qq / box）"
+for c in astr qq box creds.py; do
   if [ ! -s "$STATE/$c" ]; then
-    [ -n "$LOCAL" ] && http GET "$LOCAL/a/termux/$c" > "$STATE/$c" 2>/dev/null
-    [ -s "$STATE/$c" ] || http GET "$RAW_BASE/$c" > "$STATE/$c" 2>/dev/null || true
+    if [ -n "$LOCAL" ]; then
+      http GET "$LOCAL/a/termux/$c" > "$STATE/$c" 2>/dev/null || true
+    fi
+    if [ ! -s "$STATE/$c" ]; then
+      http GET "$RAW_BASE/$c" > "$STATE/$c" 2>/dev/null || true
+    fi
   fi
   if [ -s "$STATE/$c" ]; then
     chmod +x "$STATE/$c" 2>/dev/null || true
@@ -167,7 +170,9 @@ for c in astr qq arklink creds.py; do
   fi
 done
 for c in astr qq box; do
-  [ -f "$STATE/$c" ] && ln -sf "$STATE/$c" "$PREFIX/bin/$c" 2>/dev/null && ok "$c 命令已就绪"
+  if [ -f "$STATE/$c" ]; then
+    ln -sf "$STATE/$c" "$PREFIX/bin/$c" 2>/dev/null && ok "$c 命令已就绪"
+  fi
 done
 
 step "1/9 检查 Termux 运行时自带工具"
@@ -246,15 +251,6 @@ fetch_pkg() { # $1=文件名 $2=落地路径  $3=失败是否致命（die|warn�
       urls="https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/qq-3.2.34-arm64/linuxqq_3.2.34-53644_arm64.deb
         https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/qq-3.2.34-arm64/linuxqq_3.2.34-53644_arm64.deb
         https://github.com/panxian-AI/ArkLink/releases/download/qq-3.2.34-arm64/linuxqq_3.2.34-53644_arm64.deb"
-      ;;
-    napcat.zip)
-      urls="https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip
-        https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip
-        https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip"
-      ;;
-    arklink.tar.gz)
-      urls="$(gh_urls arklink.tar.gz)
-        https://gh-proxy.com/https://codeload.github.com/panxian-AI/ArkLink/tar.gz/refs/heads/main"
       ;;
     *) urls="" ;;
   esac
@@ -498,6 +494,13 @@ else
   step "7/9 本机 QQ：官方 LinuxQQ arm64 + Xvfb 虚拟屏"
 
   fetch_pkg linuxqq_arm64.deb "$STATE/linuxqq_arm64.deb" warn || true
+  # App 下好的 deb 落在 Termux 侧 ~/.arkbox/，而安装发生在 rootfs 里——
+  # 必须显式递进去，否则 rootfs 内 /root/.arkbox/ 是空的（v0.1.0 就死在这）
+  mkdir -p "$ROOTFS/root/.arkbox"
+  if [ -s "$STATE/linuxqq_arm64.deb" ]; then
+    cp -f "$STATE/linuxqq_arm64.deb" "$ROOTFS/root/.arkbox/linuxqq_arm64.deb"
+    ok "QQ 安装包已递进 rootfs（$(du -h "$STATE/linuxqq_arm64.deb" | cut -f1)）"
+  fi
 
   "$STATE/proot-run.sh" /bin/bash -c '
 set -e
@@ -536,12 +539,18 @@ if [ "$SKIP_QQ" = "1" ]; then
   step "8/9 跳过（--no-qq）"
 else
   step "8/9 ArkLink + SnowLink（官方客户端通道 + OneBot v11）"
+  # --qq-only 时 3-6/9 被跳过，rootfs 里可能连 python3 都没有，这里自己兜住
   "$STATE/proot-run.sh" /bin/bash -c "
 set -e
+export DEBIAN_FRONTEND=noninteractive
+command -v python3 >/dev/null 2>&1 && command -v pip3 >/dev/null 2>&1 || {
+  apt-get update -q
+  apt-get install -y --no-install-recommends python3 python3-pip ca-certificates
+}
 if ! python3 -c 'import arklink' 2>/dev/null || ! python3 -c 'import snowlink' 2>/dev/null; then
   pip3 install --no-cache-dir -q --break-system-packages -i $PY_INDEX \
-    'arklink @ git+https://github.com/panxian-AI/ArkLink' \
-    'snowlink @ git+https://github.com/panxian-AI/SnowLink'
+    https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/archive/refs/heads/main.tar.gz \
+    https://gh-proxy.com/https://github.com/panxian-AI/SnowLink/archive/refs/heads/main.tar.gz
 fi
 python3 -c 'import arklink, snowlink; print("  arklink + snowlink 导入正常")'
   " || die "ArkLink/SnowLink 装失败（检查网络）"
@@ -558,14 +567,18 @@ for c in astr qq box; do
     ok "$c 命令已注册"
   else
     warn "$c 控制脚本缺失，从 App 本地服务再试一次"
-    [ -n "$LOCAL" ] && http GET "$LOCAL/a/termux/$c" > "$STATE/$c" 2>/dev/null
+    if [ -n "$LOCAL" ]; then
+      http GET "$LOCAL/a/termux/$c" > "$STATE/$c" 2>/dev/null || true
+    fi
     if [ -s "$STATE/$c" ]; then
       chmod +x "$STATE/$c"; ln -sf "$STATE/$c" "$PREFIX/bin/$c" 2>/dev/null || true
       ok "$c 命令已注册"
     fi
   fi
 done
-[ -s "$STATE/creds.py" ] || { [ -n "$LOCAL" ] && http GET "$LOCAL/a/termux/creds.py" > "$STATE/creds.py" 2>/dev/null; }
+if [ ! -s "$STATE/creds.py" ] && [ -n "$LOCAL" ]; then
+  http GET "$LOCAL/a/termux/creds.py" > "$STATE/creds.py" 2>/dev/null || true
+fi
 
 set_state done "9/9" "全部完成"
 report_prog "done 全部装完了 ✓"
