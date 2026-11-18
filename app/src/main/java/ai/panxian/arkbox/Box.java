@@ -43,6 +43,25 @@ final class Box {
     static volatile String lastError = "";
     static volatile long probedAt;
 
+    /** SnowLuma WebUI 登录密码（box token --raw 打回来的 PASS= 行）。空 = 没读到明文。 */
+    static volatile String webuiPass = "";
+
+    /**
+     * 吃 Termux 那边 POST 回来的 {@code box token --raw} 输出，抽出 PASS= 行。
+     * PASS= 空（或没有）表示密码已在网页里改过、看不回明文，只能走重置。
+     */
+    static void absorbWebuiPass(String body) {
+        if (body == null) {
+            return;
+        }
+        for (String raw : body.split("\n")) {
+            String line = raw.trim();
+            if (line.startsWith("PASS=")) {
+                webuiPass = line.substring(5).trim();
+            }
+        }
+    }
+
     private Box() {
     }
 

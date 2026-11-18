@@ -425,6 +425,8 @@ public class MainActivity extends AppCompatActivity {
             toast("QQ（无头）和 ArkLink 正在启动，稍后看状态");
         });
         findViewById(R.id.btnQqWeb).setOnClickListener(v -> openWeb(Box.WEBUI_URL, "SnowLuma WebUI"));
+        findViewById(R.id.btnSlPass).setOnClickListener(v -> readSlPass());
+        findViewById(R.id.btnSlReset).setOnClickListener(v -> askSlReset());
         findViewById(R.id.btnQqFill).setOnClickListener(v -> {
             inpArklink.setText(Box.ONEBOT_URL);
             prefs.save(Box.ONEBOT_URL, value(inpAstrbot), value(inpSelfId),
@@ -773,6 +775,101 @@ public class MainActivity extends AppCompatActivity {
                     ui.postDelayed(this::readCreds, 25_000);
                 })
                 .show();
+    }
+
+    // ---------------------------------------------------------- SnowLuma WebUI 密码
+
+    /** 读 SnowLuma WebUI 登录密码：box token --raw 打回来弹窗显示。 */
+    private void readSlPass() {
+        if (!readyToSend()) {
+            return;
+        }
+        Box.webuiPass = "";
+        Term.note("=== 读 SnowLuma WebUI 密码 ===");
+        BridgeService.serve(this);
+        // 落文件再 POST：和读 AstrBot 账号一个套路，绕开管道缓冲
+        Termux.send(this,
+                "mkdir -p ~/.arkbox"
+                        + "; box token --raw > ~/.arkbox/slp.txt 2>&1"
+                        + "; curl -sS -m 30 -X POST --data-binary @\"$HOME/.arkbox/slp.txt\""
+                        + " \"$ARKBOX_LOCAL/p/slpass\""
+                        + "; cat ~/.arkbox/slp.txt",
+                60);
+        // box token 是本地 grep，秒回；留 4 秒余量等 curl 打回来
+        ui.postDelayed(this::showSlPassDialog, 4000);
+    }
+
+    private void showSlPassDialog() {
+        String pw = Box.webuiPass == null ? "" : Box.webuiPass;
+        String msg;
+        if (pw.isEmpty()) {
+            msg = "没读到明文密码。\n\n常见两种情况：\n"
+                    + "1. SnowLuma 还没启动过（先点「启动」跑一次 box start）；\n"
+                    + "2. 密码已经在 WebUI 里改过了——哈希保存看不回明文。\n\n"
+                    + "忘了密码就点「重置密码」，设一个新密码（SnowLuma 会自动重启）。";
+        } else {
+            msg = "账号 admin\n密码 " + pw + "\n\n"
+                    + "登录后 WebUI 会要求改一次密码，改完这个初始密码就作废了。\n"
+                    + "忘了随时回来点「重置 WebUI 密码」。";
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("SnowLuma WebUI 登录")
+                .setMessage(msg)
+                .setNegativeButton("关闭", null)
+                .setPositiveButton("重置密码", (d, w) -> askSlReset())
+                .show();
+    }
+
+    /** 重置 SnowLuma WebUI 密码：box setpass 会写 bootstrap 密码 + 删旧凭据 + 重启。 */
+    private void askSlReset() {
+        if (!readyToSend()) {
+            return;
+        }
+        final TextInputEditText input = new TextInputEditText(this);
+        input.setHint("新密码（≥8 位；留空自动生成）");
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        input.setPadding(pad, pad, pad, pad);
+        new AlertDialog.Builder(this)
+                .setTitle("重置 SnowLuma WebUI 密码")
+                .setMessage("会备份并删掉旧凭据、写入新密码，然后自动重启 SnowLuma（约 20 秒）。\n\n"
+                        + "新密码会显示在终端里，重启完成后用它登录 WebUI（账号 admin）。")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("重置", (dialog, which) -> {
+                    String pw = value(input);
+                    if (pw.isEmpty()) {
+                        pw = genPass();
+                        toast("已生成：" + pw);
+                    }
+                    if (pw.length() < 8) {
+                        toast("太短了，至少 8 位");
+                        return;
+                    }
+                    String safe = pw.replace("'", "'\\''");
+                    Term.note("=== 重置 SnowLuma WebUI 密码 ===");
+                    BridgeService.serve(this);
+                    Termux.send(this, "box setpass '" + safe + "'", 300);
+                    // setpass 内部有 start 的 12 秒等待，跑完自动再读一次确认
+                    ui.postDelayed(this::readSlPass, 20_000);
+                })
+                .show();
+    }
+
+    /** 生成一个肯定满足 ≥8 位、含大小写和数字的随机密码。 */
+    private String genPass() {
+        String up = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String low = "abcdefghijkmnpqrstuvwxyz";
+        String num = "23456789";
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder();
+        sb.append(up.charAt(r.nextInt(up.length())));
+        sb.append(low.charAt(r.nextInt(low.length())));
+        sb.append(num.charAt(r.nextInt(num.length())));
+        String all = up + low + num;
+        for (int i = 0; i < 9; i++) {
+            sb.append(all.charAt(r.nextInt(all.length())));
+        }
+        return sb.toString();
     }
 
     private void sendToTermux(String command) {

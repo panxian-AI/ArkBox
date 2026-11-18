@@ -99,7 +99,15 @@ public class PanelActivity extends Activity {
     }
 
     private void showCreds() {
-        String text = Creds.summary();
+        String text;
+        if (target.contains(":5099")) {
+            // SnowLuma WebUI 的登录信息——和 AstrBot 面板账号是两码事
+            String pw = Box.webuiPass;
+            text = "SnowLuma WebUI · 账号 admin · 密码 "
+                    + (pw.isEmpty() ? "没读到：回主界面点「WebUI 密码」读取或重置" : pw);
+        } else {
+            text = Creds.summary();
+        }
         status.setText(text);
         status.postDelayed(() -> status.setText(title + " · " + target), 6000);
     }

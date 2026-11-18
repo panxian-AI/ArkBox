@@ -1,10 +1,14 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# ArkBox box 控制命令：start/stop/status/log
+# ArkBox box 控制命令：start/stop/status/log/token/setpass
 # SnowLuma：hook 注入官方 QQ 进程，出标准 OneBot v11
 #   HTTP http://127.0.0.1:3000    WS ws://127.0.0.1:3001    WebUI http://127.0.0.1:5099
 STATE="$HOME/.arkbox"
 LOG="$STATE/box.log"
 PID="$STATE/box.pid"
+# WebUI 登录密码：SnowLuma 把密码 scrypt 哈希存进 config/webui.json，读不回明文。
+# 能显示的只有两处：首次启动日志里打印的初始密码行，以及 box setpass 写进来的
+# bootstrap 密码（靠 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD 环境变量生效）。
+ROOT_PASS="$STATE/rootfs/opt/snowluma/.arkbox-pass"
 
 pid_of() {
   if [ -f "$PID" ]; then
@@ -37,6 +41,11 @@ start() {
   export SNOWLUMA_ACCEPT_EULA=1 SNOWLUMA_ACCEPT_PRIVACY=1
   export SNOWLUMA_LOG_LEVEL=info SNOWLUMA_LOG_FILE_LEVEL=info
   cd /opt/snowluma
+  # 重置过密码的话把 bootstrap 密码带上——只在 webui.json 缺失/损坏时被采用，
+  # 平时放着无害，webui.json 坏了还能靠它找回登录
+  if [ -f /opt/snowluma/.arkbox-pass ]; then
+    export SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD="$(cat /opt/snowluma/.arkbox-pass)"
+  fi
   # hookAutoLoad 在 config/runtime.json 里，装的时候就写好了
   exec ./launcher.sh
   '
@@ -44,6 +53,7 @@ start() {
   sleep 12
   if port_ok 3001; then
     echo "✓ OneBot v11 就绪：HTTP :3000 / WS :3001 / WebUI :5099"
+    echo "  WebUI 登录密码看：box token"
     conf=$(ls "$STATE"/rootfs/opt/snowluma/config/onebot_*.json 2>/dev/null | head -1)
     if [ -n "$conf" ]; then
       tok=$(grep -o '"accessToken"[^,}]*' "$conf" 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)"/\1/')
@@ -76,10 +86,78 @@ status() {
 
 log() { tail -n "${2:-50}" "$LOG" 2>/dev/null || echo "还没有日志"; }
 
+# 显示 WebUI 登录密码。--raw 给 App 用：只打 PASS=xxx 一行，好解析
+token() {
+  fmt="${1:-}"
+  cfg="$STATE/rootfs/opt/snowluma/config/webui.json"
+  # 网页里改过密码的话（mustChangePassword=false），初始密码已作废且哈希不可逆——如实说
+  if [ -f "$cfg" ] && grep -q '"mustChangePassword"[[:space:]]*:[[:space:]]*false' "$cfg" 2>/dev/null; then
+    if [ "$fmt" = "--raw" ]; then
+      echo "PASS="
+    else
+      echo "WebUI 密码已经在网页里改过（哈希保存，看不回明文）。"
+      echo "忘了就重置一个：box setpass 新密码（≥8 位，会重启 SnowLuma）"
+    fi
+    return 0
+  fi
+  # 去掉日志的 ANSI 色码再捞初始密码行，取最近一次启动的
+  pw=$(sed 's/\x1b\[[0-9;]*m//g' "$LOG" 2>/dev/null \
+    | grep -o 'initial credentials: user=admin password=[^ "]*' \
+    | tail -n 1 | sed 's/.*password=//')
+  if [ -z "$pw" ] && [ -f "$ROOT_PASS" ]; then
+    pw=$(cat "$ROOT_PASS" 2>/dev/null)
+  fi
+  if [ -n "$pw" ]; then
+    if [ "$fmt" = "--raw" ]; then
+      echo "PASS=$pw"
+    else
+      echo "SnowLuma WebUI：账号 admin · 密码 $pw"
+      echo "（登录后网页会要求改密码，改完这里就看不到了；忘了用 box setpass 重置）"
+    fi
+  else
+    if [ "$fmt" = "--raw" ]; then
+      echo "PASS="
+    else
+      echo "没找到 WebUI 明文密码（日志里没有初始密码行）。"
+      echo "重置一个：box setpass 新密码（≥8 位，会重启 SnowLuma）"
+    fi
+  fi
+}
+
+# 重置 WebUI 密码：写 bootstrap 密码文件 → 备份并删掉旧 webui.json → 重启
+setpass() {
+  pw="$1"
+  if [ -z "$pw" ]; then
+    echo "用法: box setpass 新密码（≥8 位）"
+    exit 1
+  fi
+  if [ "${#pw}" -lt 8 ]; then
+    echo "密码至少 8 位"
+    exit 1
+  fi
+  mkdir -p "$(dirname "$ROOT_PASS")"
+  printf '%s\n' "$pw" > "$ROOT_PASS"
+  chmod 600 "$ROOT_PASS"
+  cfg="$STATE/rootfs/opt/snowluma/config/webui.json"
+  if [ -f "$cfg" ]; then
+    mv "$cfg" "$cfg.bak.$(date +%s)"
+    echo "旧凭据已备份为 webui.json.bak.*"
+  fi
+  echo "写入新密码，重启 SnowLuma 生效…"
+  if running; then
+    stop
+  fi
+  start
+  echo "✓ WebUI 密码已重置：账号 admin · 密码 $pw"
+  echo "  尽快登录一次：网页会要求改密码，改掉之后重启也不怕丢了。"
+}
+
 case "${1:-status}" in
-  start)  start ;;
-  stop)   stop ;;
-  status) status ;;
-  log)    shift; log "$@" ;;
-  *) echo "用法: box start|stop|status|log [行数]"; exit 1 ;;
+  start)   start ;;
+  stop)    stop ;;
+  status)  status ;;
+  log)     shift; log "$@" ;;
+  token)   shift; token "${1:-}" ;;
+  setpass) shift; setpass "$1" ;;
+  *) echo "用法: box start|stop|status|log [行数]|token|setpass 新密码"; exit 1 ;;
 esac

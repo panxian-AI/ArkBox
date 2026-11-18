@@ -341,6 +341,9 @@ final class LocalServer {
             }
             if (topic.startsWith("cred")) {
                 Creds.absorb(body);
+            } else if (topic.startsWith("slpass")) {
+                // box token --raw 打回来的 WebUI 登录密码
+                Box.absorbWebuiPass(body);
             } else if (topic.startsWith("prog")) {
                 // install.sh 每步实时推的进度行（日志全文还是走 p/term，跑完一次到）
                 InstallProgress.absorb(body);

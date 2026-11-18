@@ -58,7 +58,7 @@ SnowLuma 用的是官方 `linux-arm64-lite` 构建（8 MB，不含 ffmpeg addon�
 |---|---|
 | 6185 | AstrBot 面板 |
 | 3000 / 3001 | SnowLuma OneBot v11 HTTP / WS |
-| 5099 | SnowLuma WebUI |
+| 5099 | SnowLuma WebUI（登录密码：`box token` 查看 / `box setpass 新密码` 重置，或 App 里的「WebUI 密码」按钮） |
 | 6081 | noVNC（只在首次扫码时要看） |
 | 6900 | ArkLink API（可选，发信兜底时才用） |
 
