@@ -1,0 +1,79 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ArkBox box 控制命令：start/stop/status/log
+# ArkLink(serve api :6900) + SnowLink(OneBot v11 :3000/:3001, WebUI :5099)
+STATE="$HOME/.arkbox"
+LOG="$STATE/box.log"
+PID="$STATE/box.pid"
+
+pid_of() {
+  if [ -f "$PID" ]; then
+    p=$(tr -dc '0-9' < "$PID" 2>/dev/null)
+    if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then echo "$p"; return 0; fi
+  fi
+  p=$(pgrep -f 'snowlink ru[n]' 2>/dev/null | head -n 1)
+  if [ -n "$p" ]; then echo "$p" > "$PID" 2>/dev/null; echo "$p"; return 0; fi
+  rm -f "$PID"
+  return 1
+}
+running() { pid_of >/dev/null 2>&1; }
+
+port_ok() {
+  code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$1/" 2>/dev/null || echo 000)
+  [ "$code" != "000" ] && [ "$code" != "" ]
+}
+
+start() {
+  if running && port_ok 3001; then
+    echo "ArkLink + SnowLink 已经在跑（pid $(pid_of)）"
+    return 0
+  fi
+  if [ ! -d "$STATE/rootfs/root/.snowlink" ] && [ ! -d "$STATE/rootfs/root/snowlink" ]; then
+    echo "SnowLink 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
+    exit 1
+  fi
+  # 一条命令把整条链拉起来：ArkLink api → SnowLink run（配置在 /root/.snowlink）
+  "$STATE/proot-run.sh" --bg "$PID" /bin/bash -c '
+  export HOME=/root TZ=Asia/Shanghai
+  mkdir -p /root/.snowlink
+  cd /root/.snowlink
+  pgrep -f "arklink serve ap[i]" >/dev/null || { arklink serve api >/tmp/arklink.log 2>&1 </dev/null & sleep 3; }
+  exec python3 -m snowlink run
+  '
+  echo "ArkLink + SnowLink 启动中（等 8 秒验证）…"
+  sleep 8
+  if port_ok 3001; then
+    echo "✓ OneBot v11 就绪：HTTP :3000 / WS :3001 / WebUI :5099"
+  else
+    echo "✗ 3001 还没通（SnowLink 可能要先生成配置），最近日志："
+    tail -n 15 "$LOG" 2>/dev/null
+    echo "首次配置：qq 登录后跑 python3 -m snowlink init --uin <QQ号>"
+  fi
+}
+
+stop() {
+  p=$(pid_of 2>/dev/null) && kill "$p" 2>/dev/null
+  sleep 2
+  "$STATE/proot-run.sh" /bin/bash -c 'pkill -f "snowlink ru[n]" 2>/dev/null; pkill -f "arklink serve ap[i]" 2>/dev/null || true' || true
+  rm -f "$PID"
+  echo "ArkLink + SnowLink 已停止"
+}
+
+status() {
+  if running && port_ok 3001; then
+    echo "ArkLink + SnowLink: 运行中（pid $(pid_of)）"
+  elif running; then
+    echo "进程在（pid $(pid_of)）但 3001 不通"
+  else
+    echo "ArkLink + SnowLink: 未运行"
+  fi
+}
+
+log() { tail -n "${2:-50}" "$LOG" 2>/dev/null || echo "还没有日志"; }
+
+case "${1:-status}" in
+  start)  start ;;
+  stop)   stop ;;
+  status) status ;;
+  log)    shift; log "$@" ;;
+  *) echo "用法: box start|stop|status|log [行数]"; exit 1 ;;
+esac

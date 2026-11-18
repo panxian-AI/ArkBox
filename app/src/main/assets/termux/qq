@@ -1,0 +1,84 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ArkBox QQ 控制命令：start/stop/status/log
+# QQ 是官方 LinuxQQ 客户端本体（Xvfb 无头），零注入；扫码走 noVNC 6081
+STATE="$HOME/.arkbox"
+LOG="$STATE/qq.log"
+PID="$STATE/qq.pid"
+XVFB_PID="$STATE/xvfb.pid"
+
+pid_of() {
+  if [ -f "$PID" ]; then
+    p=$(tr -dc '0-9' < "$PID" 2>/dev/null)
+    if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then echo "$p"; return 0; fi
+  fi
+  p=$(pgrep -f '/opt/QQ/q[q]' 2>/dev/null | head -n 1)
+  if [ -n "$p" ]; then echo "$p" > "$PID" 2>/dev/null; echo "$p"; return 0; fi
+  rm -f "$PID"
+  return 1
+}
+running() { pid_of >/dev/null 2>&1; }
+
+start() {
+  if [ ! -f "$STATE/rootfs/opt/QQ/qq" ]; then
+    echo "QQ 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
+    exit 1
+  fi
+  if running; then
+    echo "QQ 已经在跑（pid $(pid_of)）"
+    return 0
+  fi
+  # 虚拟屏 + noVNC（缺一个都不行：QQ 要屏，人要扫码）
+  "$STATE/proot-run.sh" --bg "$XVFB_PID" /bin/bash -c '
+  pgrep -x Xvfb >/dev/null || { Xvfb :1 -screen 0 1280x720x16 >/tmp/xvfb.log 2>&1 </dev/null & sleep 2; }
+  pgrep -x fluxbox >/dev/null || { fluxbox >/tmp/fluxbox.log 2>&1 </dev/null & }
+  pgrep -x x11vnc  >/dev/null || { x11vnc -display :1 -noshm -nopw -forever -shared -rfbport 5900 -localhost >/tmp/x11vnc.log 2>&1 </dev/null & }
+  pgrep -f "websockif[y]" >/dev/null || { websockify --web /usr/share/novnc 127.0.0.1:6081 127.0.0.1:5900 >/tmp/novnc.log 2>&1 </dev/null & }
+  export DISPLAY=:1
+  mkdir -p /tmp/qq-home
+  cd /root
+  HOME=/tmp/qq-home DISPLAY=:1 TZ=Asia/Shanghai \
+    /opt/QQ/qq --no-sandbox --disable-gpu --disable-software-rasterizer \
+    --disable-gpu-compositing --disable-dev-shm-usage
+  '
+  echo "QQ 启动中（等 10 秒验证）…"
+  sleep 10
+  if running; then
+    echo "✓ QQ 已启动（pid $(pid_of)）。首次登录扫码：http://127.0.0.1:6081/vnc.html"
+    echo "  登录态在 /tmp/qq-home，重启不用重新扫码"
+  else
+    echo "✗ QQ 没起来，最近日志："
+    tail -n 15 "$LOG" 2>/dev/null
+  fi
+}
+
+stop() {
+  p=$(pid_of 2>/dev/null) && kill "$p" 2>/dev/null
+  sleep 2
+  "$STATE/proot-run.sh" /bin/bash -c 'pkill -f "/opt/QQ/q[q]" 2>/dev/null || true' || true
+  rm -f "$PID"
+  echo "QQ 已停止"
+}
+
+status() {
+  if running; then
+    echo "QQ: 运行中（pid $(pid_of)）"
+  else
+    echo "QQ: 未运行"
+  fi
+  # 顺带报 ArkLink / SnowLink 状态，一眼看全链路
+  for p in 6900 3001 5099 6081; do
+    code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
+    [ "$code" != "000" ] && echo "  端口 $p: 通($code)" || echo "  端口 $p: 不通"
+  done
+  echo "  扫码页: http://127.0.0.1:6081/vnc.html"
+}
+
+log() { tail -n "${2:-50}" "$LOG" 2>/dev/null || echo "还没有日志"; }
+
+case "${1:-status}" in
+  start)  start ;;
+  stop)   stop ;;
+  status) status ;;
+  log)    shift; log "$@" ;;
+  *) echo "用法: qq start|stop|status|log [行数]"; exit 1 ;;
+esac

@@ -1,0 +1,131 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ArkBox 的 AstrBot 控制命令：start/stop/status/log/creds/resetpw/shell/run
+#
+# 这个文件由 App 在「安装 / 更新」一开始就预置好（不等安装跑完），
+# 所以任何时候 astr status 都能回答两件事：装到哪一步了 / AstrBot 跑没跑。
+STATE="$HOME/.arkbox"
+ROOTFS="$STATE/rootfs"
+LOG="$STATE/astr.log"
+PID="$STATE/astr.pid"
+MAIN="$ROOTFS/root/AstrBot/main.py"
+
+# pidfile 不可信（可能为空/丢失）：先验 pidfile，不行就按命令行特征兜底找进程，
+# 找到的话顺手把 pid 写回 pidfile，避免起出第二个实例撞 6185 端口
+pid_of() {
+  if [ -f "$PID" ]; then
+    p=$(tr -dc '0-9' < "$PID" 2>/dev/null)
+    if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then echo "$p"; return 0; fi
+  fi
+  p=$(pgrep -f 'python main\.py' 2>/dev/null | head -n 1)
+  if [ -n "$p" ]; then echo "$p" > "$PID" 2>/dev/null; echo "$p"; return 0; fi
+  rm -f "$PID"
+  return 1
+}
+running() { pid_of >/dev/null 2>&1; }
+installed() { [ -f "$MAIN" ]; }
+
+# 读安装器写的 state 文件（~/.arkbox/state），报告安装进度/失败原因
+install_state() {
+  [ -f "$STATE/state" ] || return 0
+  st=""; step=""; total=""; desc=""; err=""
+  while IFS='=' read -r k v; do
+    case "$k" in
+      status) st="$v" ;;
+      step) step="$v" ;;
+      total) total="$v" ;;
+      desc) desc="$v" ;;
+      err) err="$v" ;;
+    esac
+  done < "$STATE/state"
+  case "$st" in
+    running) echo "安装进行中：第 ${step:-?}/${total:-9} 步 · ${desc:-…}（装完才能 start）" ;;
+    failed)  echo "安装失败（第 $step 步：$desc）：${err:-详情看 astr log}"
+             echo "修复后重新点「安装 / 更新」，会从断掉的地方接着装" ;;
+    done)    echo "安装完成 ✓" ;;
+  esac
+}
+
+start() {
+  if ! installed; then
+    echo "AstrBot 还没装好（$MAIN 不存在）。先在 App 里点「安装 / 更新」。"
+    exit 1
+  fi
+  if running; then echo "已经在跑了（pid $(pid_of)）"; return 0; fi
+  : > "$LOG"
+  # 由 App 起平级 proot 进程（外层 Termux 环境已经是 proot，不能再套一层）
+  ARK_BG_LOG="$LOG" "$STATE/proot-run.sh" --bg "$PID" /bin/bash -c \
+    'cd /root/AstrBot && exec ./.venv/bin/python main.py'
+  echo "已启动（pid $(cat "$PID" 2>/dev/null)），日志：$LOG"
+  sleep 3
+  tail -n 12 "$LOG" 2>/dev/null || true
+}
+
+stop() {
+  p=$(pid_of 2>/dev/null || true)
+  if [ -z "$p" ]; then echo "没在跑"; rm -f "$PID"; return 0; fi
+  kill "$p" 2>/dev/null || true
+  sleep 1
+  kill -9 "$p" 2>/dev/null || true
+  pkill -f 'python main\.py' 2>/dev/null || true
+  rm -f "$PID"
+  echo "已停止"
+}
+
+status() {
+  install_state
+  if installed; then
+    echo "AstrBot 源码就位：/root/AstrBot"
+  else
+    echo "AstrBot 未安装（先点 App 里的「安装 / 更新」）"
+  fi
+  running && echo "进程在跑（pid $(pid_of)）" || echo "进程没在跑"
+  code=$(curl -s -o /dev/null -m 4 -w '%{http_code}' http://127.0.0.1:6185/ 2>/dev/null || echo 000)
+  echo "面板 127.0.0.1:6185 → HTTP $code"
+  [ -f "$LOG" ] && echo "日志最后一行：$(tail -n 1 "$LOG" 2>/dev/null)"
+}
+
+case "${1:-status}" in
+  start) start ;;
+  stop) stop ;;
+  restart) stop; sleep 1; start ;;
+  status) status ;;
+  log) tail -n "${2:-80}" "$LOG" 2>/dev/null || echo "还没日志" ;;
+  creds) "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/creds.py ;;
+  setpw|resetpw)
+    pw="${2:-}"
+    if [ -z "$pw" ]; then
+      # 自动生成：固定前缀保证一定满足 AstrBot 的复杂度要求（大写+小写+数字）
+      pw="Arkb0t-$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 6)"
+    fi
+    case "$pw" in
+      *[A-Z]*) : ;; *) echo "✗ 密码要含大写字母"; exit 2 ;;
+    esac
+    case "$pw" in
+      *[a-z]*) : ;; *) echo "✗ 密码要含小写字母"; exit 2 ;;
+    esac
+    case "$pw" in
+      *[0-9]*) : ;; *) echo "✗ 密码要含数字"; exit 2 ;;
+    esac
+    if [ "${#pw}" -lt 8 ]; then echo "✗ 至少 8 位"; exit 2; fi
+    was_running=0; running && was_running=1
+    stop >/dev/null 2>&1
+    echo "改写面板配置（pbkdf2 计算要几秒）…"
+    out=$("$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/setpw.py "$pw")
+    case "$out" in
+      OK=1*)
+        echo "$out"
+        echo "$pw" > "$STATE/panel.pw"; chmod 600 "$STATE/panel.pw" 2>/dev/null
+        [ "$was_running" = 1 ] && start
+        echo "✓ 面板密码已重置（App 的「账号密码」卡也会显示）"
+        ;;
+      *)
+        echo "$out"; echo "✗ 改配置失败"
+        [ "$was_running" = 1 ] && start
+        exit 1
+        ;;
+    esac
+    ;;
+  shell) echo "交互 shell 不可用（App 不是终端）。用：astr run '命令'，例如 astr run 'ls /root'" ;;
+  run) shift; "$STATE/proot-run.sh" /bin/bash -c "$*" ;;
+  *) echo "用法: astr {start|stop|restart|status|log|creds|resetpw|shell|run}" ;;
+esac
