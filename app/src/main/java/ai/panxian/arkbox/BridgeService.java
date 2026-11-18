@@ -251,7 +251,7 @@ public class BridgeService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_status)
-                .setContentTitle("ArkDroid")
+                .setContentTitle("ArkBox")
                 .setContentText(describeState())
                 .setContentIntent(pending)
                 .setOngoing(true)

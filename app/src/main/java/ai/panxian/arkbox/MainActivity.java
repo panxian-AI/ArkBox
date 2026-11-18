@@ -151,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
         android.content.ClipboardManager cm =
                 (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         if (cm != null) {
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("ArkDroid", text));
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("ArkBox", text));
             toast("已复制" + what + "全部内容");
         }
     }
@@ -205,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (!welcomed) {
             welcomed = true;
-            LogBus.append("ArkDroid 已就绪。中继直接跑在本 App 里（Chaquopy + ArkBridge）。");
+            LogBus.append("ArkBox 已就绪。中继直接跑在本 App 里（Chaquopy + ArkBridge）。");
             Term.note("第一次用：点「一键下载全部」→ 点「安装 / 更新」（Termux 运行时已内置，不用再装别的 App）。");
             if (!Termux.installed(this)) {
                 LogBus.append("Termux 运行时还没解压：只想手机当中继可以不管；要跑 AstrBot 就先点「安装 / 更新」。");
@@ -241,16 +241,16 @@ public class MainActivity extends AppCompatActivity {
                 BridgeService.start(this);
             }
             Termux.send(this,
-                    // 1) 先把 App 内置脚本刷新到 ~/.arkdroid（发新版只装 APK 即生效，不用点安装/更新）
-                    "mkdir -p \"$HOME/.arkdroid\""
+                    // 1) 先把 App 内置脚本刷新到 ~/.arkbox（发新版只装 APK 即生效，不用点安装/更新）
+                    "mkdir -p \"$HOME/.arkbox\""
                             + "; for f in arknet.sh install.sh astr qq arklink creds.py setpw.py; do"
-                            + " curl -fsSL -m 60 -o \"$HOME/.arkdroid/$f\" \"$ARKDROID_LOCAL/a/termux/$f\" 2>/dev/null || true; done"
-                            + "; chmod +x \"$HOME/.arkdroid/install.sh\" \"$HOME/.arkdroid/astr\""
-                            + " \"$HOME/.arkdroid/qq\" \"$HOME/.arkdroid/arklink\" 2>/dev/null"
-                            + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkdroid/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
+                            + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; done"
+                            + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
+                            + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/arklink\" 2>/dev/null"
+                            + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
                             // 2) 幂等拉起服务：装好的才起
-                            + "; if [ -f \"$HOME/.arkdroid/rootfs/root/AstrBot/main.py\" ]; then astr start; fi"
-                            + "; if [ -f \"$HOME/.arkdroid/rootfs/opt/QQ/qq\" ]; then qq start; fi",
+                            + "; if [ -f \"$HOME/.arkbox/rootfs/root/AstrBot/main.py\" ]; then astr start; fi"
+                            + "; if [ -f \"$HOME/.arkbox/rootfs/opt/QQ/qq\" ]; then qq start; fi",
                     180);
             LogBus.append("已自动拉起 AstrBot / NapCat（装好的才会起；幂等，重复无害）");
         }), 4000);
@@ -399,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
         });
         findViewById(R.id.btnTermLog).setOnClickListener(v -> {
             Term.note("$ tail install.log astr.log");
-            sendCommand("tail -n 40 ~/.arkdroid/install.log ~/.arkdroid/astr.log 2>/dev/null");
+            sendCommand("tail -n 40 ~/.arkbox/install.log ~/.arkbox/astr.log 2>/dev/null");
         });
         findViewById(R.id.btnTermClear).setOnClickListener(v -> Term.clear());
 
@@ -727,13 +727,13 @@ public class MainActivity extends AppCompatActivity {
         Creds.reset();
         txtCreds.setText("正在读 AstrBot 配置…");
         BridgeService.serve(this);
-        // 落文件再 POST：管道喂 curl 会先缓冲，这条命令又依赖 $ARKDROID_LOCAL，绕开更稳
+        // 落文件再 POST：管道喂 curl 会先缓冲，这条命令又依赖 $ARKBOX_LOCAL，绕开更稳
         Termux.send(this,
-                "mkdir -p ~/.arkdroid"
-                        + "; astr creds > ~/.arkdroid/cred.txt 2>&1"
-                        + "; curl -sS -m 60 -X POST --data-binary @\"$HOME/.arkdroid/cred.txt\""
-                        + " \"$ARKDROID_LOCAL/p/cred\""
-                        + "; cat ~/.arkdroid/cred.txt",
+                "mkdir -p ~/.arkbox"
+                        + "; astr creds > ~/.arkbox/cred.txt 2>&1"
+                        + "; curl -sS -m 60 -X POST --data-binary @\"$HOME/.arkbox/cred.txt\""
+                        + " \"$ARKBOX_LOCAL/p/cred\""
+                        + "; cat ~/.arkbox/cred.txt",
                 120);
     }
 
@@ -840,7 +840,7 @@ public class MainActivity extends AppCompatActivity {
         if (cm == null) {
             return;
         }
-        cm.setPrimaryClip(ClipData.newPlainText("ArkDroid log", LogBus.text()));
+        cm.setPrimaryClip(ClipData.newPlainText("ArkBox log", LogBus.text()));
         toast("日志已复制");
     }
 

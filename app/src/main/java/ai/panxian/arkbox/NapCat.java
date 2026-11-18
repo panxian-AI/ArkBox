@@ -62,13 +62,13 @@ final class NapCat {
     static boolean install(Context ctx) {
         BridgeService.serve(ctx); // 让 Termux 能把日志 POST 回来
         LogBus.append("装本机 QQ：QQ deb + NapCat 注入 + ArkLink（install.sh --qq-only）");
-        // install.sh 在 AstrBot 安装时已经预置到 ~/.arkdroid/ 了；nohup 后台跑，输出由
+        // install.sh 在 AstrBot 安装时已经预置到 ~/.arkbox/ 了；nohup 后台跑，输出由
         // install.sh 自己实时回传（和 AstrBot 安装同一套机制），App 被杀也不中断
         return Termux.send(ctx,
-                "if [ ! -s \"$HOME/.arkdroid/install.sh\" ]; then"
+                "if [ ! -s \"$HOME/.arkbox/install.sh\" ]; then"
                         + " echo \"✗ install.sh 不在（先在 AstrBot 卡点一次「安装 / 更新」）\""
-                        + "; else for c in astr qq arklink; do ln -sf \"$HOME/.arkdroid/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
-                        + "; nohup bash \"$HOME/.arkdroid/install.sh\" --qq-only </dev/null >/dev/null 2>&1 &"
+                        + "; else for c in astr qq arklink; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
+                        + "; nohup bash \"$HOME/.arkbox/install.sh\" --qq-only </dev/null >/dev/null 2>&1 &"
                         + " echo \"✓ 本机 QQ 安装已后台启动（pid $!），输出实时流回这里\"; fi",
                 60);
     }
@@ -77,7 +77,7 @@ final class NapCat {
     static boolean start(Context ctx) {
         BridgeService.serve(ctx);
         return Termux.send(ctx,
-                "~/.arkdroid/qq start",
+                "~/.arkbox/qq start",
                 300);
     }
 
@@ -130,7 +130,7 @@ final class NapCat {
      * 不在这里硬写。
      */
     static void seedOneBotConfig(Context ctx) {
-        String cmd = "for d in ~/.arkdroid/rootfs/opt/QQ/resources/app/app_launcher/napcat/config; do "
+        String cmd = "for d in ~/.arkbox/rootfs/opt/QQ/resources/app/app_launcher/napcat/config; do "
                 + "if [ -d \"$d\" ]; then "
                 + "F=\"$d/onebot11.json\"; "
                 + "[ -f \"$F\" ] || cat > \"$F\" <<'JSON'\n"
@@ -176,7 +176,7 @@ final class NapCat {
                 + "}\n"
                 + "WJSON\n"
                 + "echo \"WebUI 登录密钥已固定：" + WEBUI_TOKEN + "（在 App 卡片里可见）\"; "
-                + "pgrep -f /opt/QQ/qq >/dev/null 2>&1 && { echo \"QQ 在跑，重启让新密钥生效…\"; ~/.arkdroid/qq restart; }; "
+                + "pgrep -f /opt/QQ/qq >/dev/null 2>&1 && { echo \"QQ 在跑，重启让新密钥生效…\"; ~/.arkbox/qq restart; }; "
                 + "fi; "
                 + "fi; done";
         Termux.send(ctx, cmd, 120);

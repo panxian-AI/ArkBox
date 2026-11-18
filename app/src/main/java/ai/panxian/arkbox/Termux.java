@@ -52,20 +52,20 @@ final class Termux {
             }
             String scripts = ""
                     // 六个 Termux 侧脚本全部从 assets 端点拿（bootstrap 自带 curl 或用 arknet 兜底）
-                    + " mkdir -p \"$HOME/.arkdroid\"; all=1"
+                    + " mkdir -p \"$HOME/.arkbox\"; all=1"
                     + "; for f in arknet.sh install.sh astr qq arklink creds.py setpw.py; do"
                     + " if command -v curl >/dev/null 2>&1; then"
-                    + " curl -fsSL -m 60 -o \"$HOME/.arkdroid/$f\" \"$ARKDROID_LOCAL/a/termux/$f\""
-                    + "; else bash \"$HOME/.arkdroid/arknet.sh\" GET \"$ARKDROID_LOCAL/a/termux/$f\""
-                    + " > \"$HOME/.arkdroid/$f\" 2>/dev/null; fi"
-                    + "; if [ -s \"$HOME/.arkdroid/$f\" ]; then echo \"✓ $f\""
+                    + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\""
+                    + "; else bash \"$HOME/.arkbox/arknet.sh\" GET \"$ARKBOX_LOCAL/a/termux/$f\""
+                    + " > \"$HOME/.arkbox/$f\" 2>/dev/null; fi"
+                    + "; if [ -s \"$HOME/.arkbox/$f\" ]; then echo \"✓ $f\""
                     + "; else all=0; echo \"✗ $f 没拿到\"; fi; done"
-                    + "; chmod +x \"$HOME/.arkdroid/install.sh\" \"$HOME/.arkdroid/astr\""
-                    + " \"$HOME/.arkdroid/qq\" \"$HOME/.arkdroid/arklink\" 2>/dev/null"
-                    + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkdroid/$c\" \"$PREFIX/bin/$c\"; done"
+                    + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
+                    + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/arklink\" 2>/dev/null"
+                    + "; for c in astr qq arklink; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\"; done"
                     + "; if [ \"$all\" = 1 ]; then echo \"✓ 脚本就位，启动安装器\""
                     // setsid 脱离 App 进程组：App 被杀安装继续
-                    + "; setsid bash \"$HOME/.arkdroid/install.sh\" </dev/null >/dev/null 2>&1 &"
+                    + "; setsid bash \"$HOME/.arkbox/install.sh\" </dev/null >/dev/null 2>&1 &"
                     + " echo \"✓ 安装器已后台启动，输出会实时流回这里\""
                     + "; else echo \"✗ 脚本没下齐，安装器没有启动\"; fi";
             TermuxRuntime.exec(ctx, scripts);

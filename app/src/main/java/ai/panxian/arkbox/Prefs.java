@@ -54,7 +54,7 @@ final class Prefs {
     /** 生成 arkbridge 认的 TOML。空字段直接不写，交给 Python 侧用默认值。 */
     String toToml() {
         StringBuilder sb = new StringBuilder();
-        sb.append("# 由 ArkDroid 生成；在 App 里改比改这个文件省事\n");
+        sb.append("# 由 ArkBox 生成；在 App 里改比改这个文件省事\n");
         sb.append("[[bridge]]\n");
         sb.append("name = \"main\"\n");
         sb.append("arklink = \"").append(esc(arklink())).append("\"\n");

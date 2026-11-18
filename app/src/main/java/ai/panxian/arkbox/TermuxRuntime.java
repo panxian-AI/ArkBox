@@ -62,12 +62,12 @@ final class TermuxRuntime {
 
     /** Ubuntu 根文件系统（装 AstrBot / QQ 的 glibc 环境）。 */
     static File rootfs(Context ctx) {
-        return new File(home(ctx), ".arkdroid/rootfs");
+        return new File(home(ctx), ".arkbox/rootfs");
     }
 
     /** 安装器状态目录（rootfs 外的那些脚本、安装包、日志）。 */
     static File state(Context ctx) {
-        return new File(home(ctx), ".arkdroid");
+        return new File(home(ctx), ".arkbox");
     }
 
     /** 装到一半（bootstrap 在下载或解压中）？用于 UI 区分提示。 */
@@ -271,7 +271,7 @@ final class TermuxRuntime {
         // proot 翻译到真实路径，所以 guest 前缀写在 host 环境里同样生效）
         env.put("LD_LIBRARY_PATH",
                 nativeBin(ctx).getAbsolutePath() + ":" + GUEST_PREFIX + "/lib");
-        env.put("ARKDROID_LOCAL", local);
+        env.put("ARKBOX_LOCAL", local);
         env.put("TERM", "xterm-256color");
         pb.directory(home(ctx));
         pb.redirectErrorStream(true);
@@ -323,8 +323,8 @@ final class TermuxRuntime {
                 "-b", "/dev",
                 "-b", "/proc",
                 "-b", "/sys",
-                // 安装包、控制脚本都在 rootfs 外的 ~/.arkdroid 里，挂进 Ubuntu 给脚本用
-                "-b", state(ctx).getAbsolutePath() + ":/root/.arkdroid",
+                // 安装包、控制脚本都在 rootfs 外的 ~/.arkbox 里，挂进 Ubuntu 给脚本用
+                "-b", state(ctx).getAbsolutePath() + ":/root/.arkbox",
                 "-w", "/root",
                 "/usr/bin/env", "-i",
                 "HOME=/root",
