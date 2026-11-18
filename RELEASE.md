@@ -1,9 +1,20 @@
-# ArkBox v0.1.8
+# ArkBox v0.1.9
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **讲清 `component loading failed`**：SnowLuma 网页里「进程注入」页的那个「加载」按钮，
+  走的是官方注入器（ptrace 写内存 manual-map）。proot 本身已经 ptrace 着 QQ 进程，
+  一个进程不能被两个调试器同时附加，所以这个按钮在 ArkBox 里**永远会报
+  `component loading failed [COMPONENT_LOAD_FAILED]`**。它不是故障，也不用管——
+  ArkBox 走的是 `LD_PRELOAD`（hook 从 QQ 进程内部自己加载组件），SnowLuma 靠扫
+  `mojo.<pid>.control.sock` 自动发现 QQ，管道一通就自己上线，**不需要点那个按钮**。
+- **hook 组件自愈**：`libslhook.so` 里硬编码找 `/opt/snowluma/native/snowluma-linux-arm64.so`
+  （真正的注入组件，SnowLuma lite 包自带）。缺它和缺载入器一样收不到消息，以前只能重跑
+  安装器；现在 `qq start` / `qq restart` 会从 rootfs 里缓存的 SnowLuma 包自动补回。
+- `qq status` 会报组件状态，并提示别点 WebUI 的「加载」按钮。
+- 内置脚本同步到 `qq 0.1.9`（这版 APK 装完即带全部修复，不依赖线上拉取）。
 - **修复：线上脚本/manifest 拉不到（gh-proxy 不支持 raw 路径）**。实测
   `https://gh-proxy.com/https://raw.githubusercontent.com/...` 直接返回它自己的 404 页面，
   所以「脚本线上优先」一直静默退回到 APK 内置的旧脚本——这就是为什么改了 `qq` 你手机上没变化。
