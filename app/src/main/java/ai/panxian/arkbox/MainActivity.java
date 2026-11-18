@@ -425,6 +425,7 @@ public class MainActivity extends AppCompatActivity {
             toast("QQ（无头）和 ArkLink 正在启动，稍后看状态");
         });
         findViewById(R.id.btnQqWeb).setOnClickListener(v -> openWeb(Box.WEBUI_URL, "SnowLuma WebUI"));
+        findViewById(R.id.btnQqVnc).setOnClickListener(v -> openQqWindow());
         findViewById(R.id.btnSlPass).setOnClickListener(v -> readSlPass());
         findViewById(R.id.btnSlReset).setOnClickListener(v -> askSlReset());
         findViewById(R.id.btnQqFill).setOnClickListener(v -> {
@@ -913,6 +914,37 @@ public class MainActivity extends AppCompatActivity {
                     + "扫码页：" + Box.NOVNC_URL);
             tv.setTextColor(getColor(R.color.muted));
         }
+    }
+
+    /**
+     * 打开 QQ 的画面（noVNC 6081）——扫码登录、验证、点「确认登录」都在这里操作。
+     * 没起来就给出「启动 QQ」这个一键路径，别让人自己去找 URL。
+     */
+    private void openQqWindow() {
+        if (!readyToSend()) {
+            return;
+        }
+        if (System.currentTimeMillis() - Box.probedAt > 4000) {
+            bg.execute(Box::probe);
+        }
+        if (Box.novncUp) {
+            openWeb(Box.NOVNC_VIEW, "QQ 窗口 · 扫码登录");
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("QQ 窗口还没起来")
+                .setMessage("6081 没响应，说明 Xvfb / QQ / noVNC 还没跑起来。\n\n"
+                        + "点「启动 QQ」会执行 qq start（无头 X + QQ + noVNC），大约 15 秒后自动打开窗口。\n\n"
+                        + "已经启动过还是这样：`qq status` 看端口，`qq log` 看报错。")
+                .setNegativeButton("取消", null)
+                .setNeutralButton("仍然打开", (d, w) -> openWeb(Box.NOVNC_VIEW, "QQ 窗口 · 扫码登录"))
+                .setPositiveButton("启动 QQ", (d, w) -> {
+                    Term.note("$ qq start");
+                    BridgeService.serve(this);
+                    Termux.send(this, "qq start", 300);
+                    ui.postDelayed(() -> openWeb(Box.NOVNC_VIEW, "QQ 窗口 · 扫码登录"), 15_000);
+                })
+                .show();
     }
 
     private void openWeb(String url, String title) {

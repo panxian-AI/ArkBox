@@ -33,6 +33,8 @@ final class Box {
 
     static final String WEBUI_URL = "http://127.0.0.1:" + WEBUI_PORT;
     static final String NOVNC_URL = "http://127.0.0.1:" + NOVNC_PORT + "/vnc.html";
+    /** 内置浏览器用的 noVNC 地址：自动连接 + 自适应缩放，省得手点。 */
+    static final String NOVNC_VIEW = NOVNC_URL + "?autoconnect=true&resize=scale&reconnect=true&reconnect_delay=2000";
     static final String ONEBOT_URL = "ws://127.0.0.1:" + ONEBOT_PORT;
 
     /** 最近一次探测结果。 */

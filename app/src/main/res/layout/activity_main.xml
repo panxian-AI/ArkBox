@@ -525,8 +525,16 @@
                         android:layout_width="0dp"
                         android:layout_height="44dp"
                         android:layout_weight="1"
-                        android:text="扫码登录" />
+                        android:text="SnowLuma 控制台" />
                 </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnQqVnc"
+                    style="@style/BtnMain"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="8dp"
+                    android:text="打开 QQ 窗口（扫码登录 / 操作 QQ）" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnQqStart"
@@ -577,7 +585,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="装的是 QQ 官方 arm64 包（proot 的 Xvfb 无头里）+ ArkLink + SnowLink（OneBot v11，零注入），合计约 250 MB，建议挂 WiFi。装完点「启动」→ 浏览器开 http://127.0.0.1:6081/vnc.html 扫码登录，最后点「填本机地址」。" />
+                    android:text="装的是 QQ 官方 arm64 包（跑在 proot 的 Xvfb 无头环境里）+ SnowLuma（hook 注入出 OneBot v11），建议挂 WiFi。装完点「启动」→ 点「打开 QQ 窗口」扫码登录 → 回来自动接上，最后点「填本机地址」。" />
 
                 <TextView
                     android:id="@+id/txtQqHint"
