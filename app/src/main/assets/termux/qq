@@ -5,6 +5,7 @@ STATE="$HOME/.arkbox"
 LOG="$STATE/qq.log"
 PID="$STATE/qq.pid"
 XVFB_PID="$STATE/xvfb.pid"
+VER="0.1.7"
 
 pid_of() {
   if [ -f "$PID" ]; then
@@ -116,14 +117,31 @@ start() {
 
 # 单独修 VNC 链（6081 打不开时用，不用动 QQ）
 vnc() {
+  echo "qq 脚本版本 $VER"
   ensure_vnc
-  sleep 3
-  if curl -s -o /dev/null -m 3 "http://127.0.0.1:6081/vnc.html" 2>/dev/null; then
-    echo "✓ 6081 已通: http://127.0.0.1:6081/vnc.html"
-  else
-    echo "✗ 6081 还是不通，rootfs 里的日志："
-    "$STATE/proot-run.sh" /bin/bash -c 'tail -n 8 /tmp/novnc.log /tmp/x11vnc.log /tmp/xvfb.log /tmp/fluxbox.log 2>/dev/null; echo ---; command -v websockify || echo "websockify 不存在（安装器第 7 步没装上，重跑安装器）"'
+  sleep 4
+  local code
+  code=$(curl -s -o /dev/null -m 3 -w '%{http_code}' "http://127.0.0.1:6081/vnc.html" 2>/dev/null || echo 000)
+  if [ "$code" != "000" ]; then
+    echo "✓ 6081 已通（HTTP $code）: http://127.0.0.1:6081/vnc.html"
+    return 0
   fi
+  echo "✗ 6081 还是不通，逐项自检："
+  "$STATE/proot-run.sh" /bin/bash -c '
+  echo "-- 进程"
+  for n in Xvfb fluxbox x11vnc; do pgrep -x "$n" >/dev/null && echo "  $n: 在跑" || echo "  $n: 没跑"; done
+  echo "-- 端口（proot 内视角）"
+  for p in 5900 6081; do (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && echo "  $p: 通" || echo "  $p: 不通"; done
+  echo "-- 组件"
+  command -v Xvfb >/dev/null && echo "  Xvfb: 有" || echo "  Xvfb: 缺失"
+  command -v x11vnc >/dev/null && echo "  x11vnc: 有" || echo "  x11vnc: 缺失"
+  command -v websockify >/dev/null && echo "  websockify: 有" || echo "  websockify: 缺失"
+  [ -f /usr/share/novnc/vnc.html ] && echo "  noVNC 页面: 有" || echo "  noVNC 页面: 缺失（/usr/share/novnc/vnc.html）"
+  echo "-- 最近日志"
+  for f in /tmp/xvfb.log /tmp/x11vnc.log /tmp/novnc.log /tmp/fluxbox.log; do
+    echo " [$f]"; tail -n 5 "$f" 2>/dev/null || echo "  （无）"
+  done
+  '
 }
 
 stop() {
@@ -137,6 +155,7 @@ stop() {
 }
 
 status() {
+  echo "qq 脚本版本 $VER"
   if running; then
     echo "QQ: 运行中（pid $(pid_of)）"
   else
