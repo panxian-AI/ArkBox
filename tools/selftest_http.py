@@ -63,12 +63,12 @@ def main() -> int:
     work = Path(tempfile.mkdtemp(prefix="arkhttp-"))
     classes = work / "classes"
     classes.mkdir()
-    src = ROOT / "app" / "src" / "main" / "java" / "ai" / "panxian" / "arkdroid"
+    src = ROOT / "app" / "src" / "main" / "java" / "ai" / "panxian" / "arkbox"
 
     cp = subprocess.run(
         [str(Path(tool(jdk, "javac"))), "-encoding", "UTF-8", "-d", str(classes),
          str(src / "HttpWire.java"),
-         str(ROOT / "tools" / "java" / "ai" / "panxian" / "arkdroid" / "HttpWireCheck.java")],
+         str(ROOT / "tools" / "java" / "ai" / "panxian" / "arkbox" / "HttpWireCheck.java")],
         capture_output=True, text=True, encoding="utf-8", errors="replace")
     check("HttpWire 能单独编译", cp.returncode == 0, cp.stderr[-400:])
     if cp.returncode != 0:
@@ -132,7 +132,7 @@ def main() -> int:
     classes2.mkdir()
     subprocess.run([str(Path(tool(jdk, "javac"))), "-encoding", "UTF-8", "-d", str(classes2),
                     str(src / "HttpWire.java"),
-                    str(ROOT / "tools" / "java" / "ai" / "panxian" / "arkdroid" / "HttpWireCheck.java")],
+                    str(ROOT / "tools" / "java" / "ai" / "panxian" / "arkbox" / "HttpWireCheck.java")],
                    capture_output=True)
     ch = subprocess.run([str(jdk_java), "-cp", str(classes2),
                          "ai.panxian.arkbox.HttpWireCheck", "--chunked"],

@@ -126,8 +126,8 @@ def main() -> int:
     classes = work / "classes"
     classes.mkdir()
 
-    src = ROOT / "app" / "src" / "main" / "java" / "ai" / "panxian" / "arkdroid" / "Downloader.java"
-    chk = ROOT / "tools" / "java" / "ai" / "panxian" / "arkdroid" / "DownloaderCheck.java"
+    src = ROOT / "app" / "src" / "main" / "java" / "ai" / "panxian" / "arkbox" / "Downloader.java"
+    chk = ROOT / "tools" / "java" / "ai" / "panxian" / "arkbox" / "DownloaderCheck.java"
     javac = Path(tool(jdk, "javac"))
     cp = subprocess.run([str(javac), "-encoding", "UTF-8", "-d", str(classes), str(src), str(chk)],
                         capture_output=True, text=True, encoding="utf-8", errors="replace")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在桌面上验证 App 内嵌的 Python 层（arkdroid.py + arkbridge）。
+"""在桌面上验证 App 内嵌的 Python 层（arkbox.py + arkbridge）。
 
 不碰 Android：只走「配置 → 启动 → 状态 → 日志 → 停止 → 自检」这条链，
 挡住真正致命的问题（导入路径、TOML 字段、状态 JSON 形状、线程与事件循环）。
@@ -19,11 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 PY_DIR = ROOT / "app" / "src" / "main" / "python"
 sys.path.insert(0, str(PY_DIR))
 
-import arkdroid  # noqa: E402
+import arkbox  # noqa: E402
 
 CHECKS: list[tuple[str, bool, str]] = []
 
-# arkdroid 会把 sys.stdout 接到 App 的日志面板上，这里留住真控制台
+# arkbox 会把 sys.stdout 接到 App 的日志面板上，这里留住真控制台
 OUT = sys.stdout
 
 
@@ -53,12 +53,12 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         cfg = write_config(Path(tmp))
 
-        message = arkdroid.start(str(cfg))
+        message = arkbox.start(str(cfg))
         check("start() 返回启动成功", "中继已启动" in message, message)
 
         time.sleep(0.8)
-        state = json.loads(arkdroid.stats())
-        check("stats() 是合法 JSON 且 running=true", state.get("running") is True, arkdroid.stats()[:200])
+        state = json.loads(arkbox.stats())
+        check("stats() 是合法 JSON 且 running=true", state.get("running") is True, arkbox.stats()[:200])
         check(
             "stats() 带出了 bridge 信息",
             len(state.get("bridges", [])) == 1 and state["bridges"][0]["name"] == "main",
@@ -71,31 +71,31 @@ def main() -> int:
             str(stats),
         )
 
-        logs = arkdroid.drain()
+        logs = arkbox.drain()
         check("drain() 拿到了运行日志", len(logs) > 0, repr(logs[:120]))
         check("日志里有中继启动字样", "中继启动" in logs, repr(logs[:200]))
-        check("drain() 取过就清空", arkdroid.drain() == "", "第二次还有内容")
+        check("drain() 取过就清空", arkbox.drain() == "", "第二次还有内容")
 
-        arkdroid.stop()
+        arkbox.stop()
         deadline = time.time() + 6
         stopped = False
         while time.time() < deadline:
-            if json.loads(arkdroid.stats()).get("running") is False:
+            if json.loads(arkbox.stats()).get("running") is False:
                 stopped = True
                 break
             time.sleep(0.2)
-        check("stop() 之后 running=false", stopped, arkdroid.stats()[:200])
+        check("stop() 之后 running=false", stopped, arkbox.stats()[:200])
 
         # 配置写坏了要原样把原因说出来，而不是抛异常
         broken = Path(tmp) / "broken.toml"
         broken.write_text('[[bridge]]\nname = "x"\narklink = ""\nastrbot = "ws://127.0.0.1:2/ws"\n', encoding="utf-8")
-        bad = arkdroid.start(str(broken))
+        bad = arkbox.start(str(broken))
         check("坏配置给出人话错误", "启动失败" in bad, bad)
-        check("坏配置后 stats 带 error", json.loads(arkdroid.stats()).get("error") != "", arkdroid.stats()[:200])
+        check("坏配置后 stats 带 error", json.loads(arkbox.stats()).get("error") != "", arkbox.stats()[:200])
 
         # 两个端口都是关的，自检要如实说「不通」而不是卡死
         started = time.time()
-        probe = arkdroid.probe(str(cfg))
+        probe = arkbox.probe(str(cfg))
         cost = time.time() - started
         check("probe() 在 25s 内返回", cost < 25, f"{cost:.1f}s")
         check("probe() 报告 ArkLink 不通", "✗ ArkLink 不通" in probe, probe[:200])

@@ -44,7 +44,7 @@ def fetch(ref: str) -> tuple[bytes, str]:
     if ref.startswith("v") or ref[0].isdigit():
         url = f"https://github.com/panxian-AI/ArkBridge/archive/refs/tags/{ref}.tar.gz"
 
-    request = urllib.request.Request(url, headers={"User-Agent": "arkdroid-sync"})
+    request = urllib.request.Request(url, headers={"User-Agent": "arkbox-sync"})
     with urllib.request.urlopen(request, timeout=90) as response:
         blob = response.read()
 
