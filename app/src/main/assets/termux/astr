@@ -8,7 +8,7 @@ ROOTFS="$STATE/rootfs"
 LOG="$STATE/astr.log"
 PID="$STATE/astr.pid"
 MAIN="$ROOTFS/root/AstrBot/main.py"
-VER="0.1.9"
+VER="0.1.10"
 
 # pidfile 不可信（可能为空/丢失）：先验 pidfile，不行就按命令行特征兜底找进程，
 # 找到的话顺手把 pid 写回 pidfile，避免起出第二个实例撞 6185 端口
@@ -94,9 +94,12 @@ diag() {
   running && echo "AstrBot: 运行中（pid $(pid_of)）" || echo "AstrBot: 没在跑（astr start）"
   code=$(curl -s -o /dev/null -m 4 -w '%{http_code}' http://127.0.0.1:6185/ 2>/dev/null || echo 000)
   echo "面板 6185 → HTTP $code"
-  for p in 3000 3001; do
+  for p in 3000 3001 6199; do
     c=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
-    [ "$c" != "000" ] && echo "OneBot $p: 通($c)" || echo "OneBot $p: 不通（QQ 没登录或 hook 没接上）"
+    case "$p:$c" in
+      3000:*|3001:*) [ "$c" != "000" ] && echo "OneBot $p: 通($c)" || echo "OneBot $p: 不通（QQ 没登录或 hook 没接上）" ;;
+      6199:*) [ "$c" != "000" ] && echo "反向WS 6199: 通($c)——AstrBot 在等 SnowLuma 来连" || echo "反向WS 6199: 不通（AstrBot 没在跑，或 aiocqhttp 平台没启用）" ;;
+    esac
   done
   # 配置摘要：白名单是否开启、里面到底有什么、管理员是谁、平台怎么连的
   mkdir -p "$ROOTFS/root/.arkbox" 2>/dev/null
@@ -135,6 +138,95 @@ PY
   echo "  私聊 UMO 形如：aiocqhttp:FriendMessage:<QQ号>"
   echo "  群聊 UMO 形如：aiocqhttp:GroupMessage:<群号>（也可以直接填群号）"
   echo "  只填纯 QQ 号匹配不上私聊；白名单命中前 /sid 也会被丢掉（鸡生蛋）"
+}
+
+# 一键打通 SnowLuma → AstrBot。
+# 真相：AstrBot 的 aiocqhttp 适配器只会「反向 WS」——它自己当服务端听 6199，
+# 等 OneBot 实现（SnowLuma）主动来连。它没有「连 ws://127.0.0.1:3001」的正向模式。
+# 所以必须在 SnowLuma 的 onebot_<QQ号>.json 里加一个 WS 客户端指向 ws://127.0.0.1:6199/ws，
+# 并把两边的 token 对齐（取 SnowLuma wsServers[0] 的 accessToken 作为共享 token）。
+link() {
+  if ! installed; then echo "AstrBot 还没装好。"; exit 1; fi
+  conf=$(ls "$STATE"/rootfs/opt/snowluma/config/onebot_*.json 2>/dev/null | head -1)
+  if [ -z "$conf" ]; then
+    echo "✗ SnowLuma 还没生成 onebot 配置（QQ 没登录）。先 qq start → noVNC 扫码，再跑 astr link。"
+    exit 1
+  fi
+  echo "OneBot 配置：${conf#$STATE/rootfs}"
+  mkdir -p "$ROOTFS/root/.arkbox" 2>/dev/null
+  cat > "$ROOTFS/root/.arkbox/link.py" <<'PY'
+import json, glob, sys
+
+# ---- SnowLuma 侧：加反向 WS 客户端（SnowLuma 主动连 AstrBot 的 6199）----
+cands = sorted(glob.glob("/opt/snowluma/config/onebot_*.json"))
+if not cands:
+    print("! 没找到 /opt/snowluma/config/onebot_*.json（QQ 未登录？）"); sys.exit(1)
+ob_path = cands[0]
+ob = json.load(open(ob_path, encoding="utf-8"))
+
+def find_list(o, names):
+    net = o.get("network")
+    if isinstance(net, dict):
+        for n in names:
+            if isinstance(net.get(n), list):
+                return net[n], "network." + n
+    for n in names:
+        if isinstance(o.get(n), list):
+            return o[n], n
+    return None, None
+
+servers, _ = find_list(ob, ("websocketServers", "wsServers"))
+tok = ""
+if servers:
+    tok = servers[0].get("accessToken") or servers[0].get("token") or ""
+clients, where = find_list(ob, ("wsClients", "websocketClients"))
+URL = "ws://127.0.0.1:6199/ws"
+entry = {
+    "name": "astrbot",
+    "enabled": True, "enable": True,
+    "url": URL, "uri": URL,
+    "role": "Universal",
+    "accessToken": tok, "token": tok,
+    "messagePostFormat": "array", "messageFormat": "array",
+    "reconnectInterval": 5000, "reconnectIntervalMs": 5000,
+    "reportSelfMessage": False, "debug": False,
+}
+if clients is None:
+    ob["wsClients"] = [entry]; where = "wsClients（新建）"
+else:
+    clients[:] = [c for c in clients if c.get("name") != "astrbot"]
+    clients.append(entry)
+with open(ob_path, "w", encoding="utf-8") as f:
+    json.dump(ob, f, ensure_ascii=False, indent=2)
+print(f"✓ SnowLuma：{where} 已加客户端 → {URL}（token {'已对齐' if tok else '为空'}）")
+
+# ---- AstrBot 侧：反向 WS 服务端 127.0.0.1:6199，token 对齐 ----
+p = "/root/AstrBot/data/cmd_config.json"
+c = json.load(open(p, encoding="utf-8"))
+hit = False
+for pf in (c.get("platform") or []):
+    if pf.get("type") == "aiocqhttp":
+        pf["enable"] = True
+        pf["ws_reverse_host"] = "127.0.0.1"
+        pf["ws_reverse_port"] = 6199
+        pf["ws_reverse_token"] = tok
+        hit = True
+        print(f"✓ AstrBot platform[{pf.get('id','')}]：反向 WS 监听 127.0.0.1:6199（token {'已对齐' if tok else '为空'}）")
+if not hit:
+    print("! AstrBot 里还没有 aiocqhttp 平台——去面板「消息平台」新增一个（选 aiocqhttp），保存后再跑一次 astr link")
+with open(p, "w", encoding="utf-8") as f:
+    json.dump(c, f, ensure_ascii=False, indent=2)
+PY
+  if ! "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/link.py 2>&1; then
+    echo "link 失败，把上面的报错原样发我。"; return 1
+  fi
+  echo "-- 重启 SnowLuma → AstrBot 让配置生效…"
+  "$STATE/box" restart 2>/dev/null | tail -n 3 || echo "  （box restart 没跑成，手动执行：box restart）"
+  stop >/dev/null 2>&1; sleep 1; start >/dev/null 2>&1
+  echo "完成。自检："
+  echo "  box log 里找：WS-Client connected ws://127.0.0.1:6199/ws"
+  echo "  astr log 里找：aiocqhttp(OneBot v11) 适配器已连接。"
+  echo "两行都有 → 私聊发 /sid 试；没回再跑 astr diag 把输出发我。"
 }
 
 # 白名单直接改配置文件（不用在面板里翻）：wl show/off/on/add <UMO>/del <UMO>/clear
@@ -198,6 +290,7 @@ case "${1:-status}" in
   restart) stop; sleep 1; start ;;
   status) status ;;
   diag) diag ;;
+  link) link ;;
   wl) shift; wl "$@" ;;
   log) tail -n "${2:-80}" "$LOG" 2>/dev/null || echo "还没日志" ;;
   creds) "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/creds.py ;;
@@ -237,5 +330,5 @@ case "${1:-status}" in
     ;;
   shell) echo "交互 shell 不可用（App 不是终端）。用：astr run '命令'，例如 astr run 'ls /root'" ;;
   run) shift; "$STATE/proot-run.sh" /bin/bash -c "$*" ;;
-  *) echo "用法: astr {start|stop|restart|status|diag|wl show|wl off|wl on|wl add <UMO>|wl del <UMO>|wl clear|log|creds|resetpw|shell|run}" ;;
+  *) echo "用法: astr {start|stop|restart|status|diag|link|wl show|wl off|wl on|wl add <UMO>|wl del <UMO>|wl clear|log|creds|resetpw|shell|run}" ;;
 esac

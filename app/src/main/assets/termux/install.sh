@@ -703,9 +703,9 @@ cat <<'EOT'
   qq start        # 先起 QQ（Xvfb 无头）。首次扫码：http://127.0.0.1:6081/vnc.html
   box start       # 再起 SnowLuma（它要发现 QQ 进程才注得进去），WebUI :5099
   astr start      # 起 AstrBot，面板 http://127.0.0.1:6185
-                  # 面板里加「AI聊天平台 → aiocqhttp(OneBot v11)」正向 WS ws://127.0.0.1:3001/
-                  # token 看 /opt/snowluma/config/onebot_<QQ号>.json 的 wsServers[0].accessToken
-                  # （box start 成功时也会直接把 token 打出来）
+                  # 打通链路只需一条：astr link（AstrBot 的 aiocqhttp 只支持「反向 WS」——
+                  # 它听 6199 等 SnowLuma 来连；本命令自动在 SnowLuma 里加 WS 客户端
+                  # ws://127.0.0.1:6199/ws 并对齐两边 token，别去配 ws://127.0.0.1:3001）
 
 首次顺序很重要：QQ 扫码登录 → 才有 config/onebot_<QQ号>.json → 3001 才会起来。
 
