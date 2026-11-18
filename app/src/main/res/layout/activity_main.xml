@@ -490,7 +490,7 @@
                     style="@style/CardTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="本机 QQ（NapCat）" />
+                    android:text="本机 QQ 链路" />
 
                 <TextView
                     android:id="@+id/txtQqState"
@@ -513,7 +513,7 @@
                         android:layout_width="0dp"
                         android:layout_height="44dp"
                         android:layout_weight="1"
-                        android:text="装 NapCat" />
+                        android:text="装 QQ 链路" />
 
                     <Space
                         android:layout_width="8dp"
@@ -549,7 +549,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="装的是 QQ 官方 arm64 包（跑在 proot 的 Xvfb 无头里）+ 你提供的 NapCat 压缩包 + ArkLink 翻译层，合计约 250 MB，建议挂 WiFi。装完点「启动」→「扫码登录」，在 WebUI 网络配置里新建 Milky 服务器（127.0.0.1:3000），最后点「填本机地址」。" />
+                    android:text="装的是 QQ 官方 arm64 包（proot 的 Xvfb 无头里）+ ArkLink + SnowLink（OneBot v11，零注入），合计约 250 MB，建议挂 WiFi。装完点「启动」→ 浏览器开 http://127.0.0.1:6081/vnc.html 扫码登录，最后点「填本机地址」。" />
 
                 <TextView
                     android:id="@+id/txtQqHint"

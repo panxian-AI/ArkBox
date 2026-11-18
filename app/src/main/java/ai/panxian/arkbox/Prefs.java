@@ -6,7 +6,7 @@ import android.content.SharedPreferences;
 /** 极简配置存取，最终落成一份 bridge.toml 交给 Python 侧。 */
 final class Prefs {
 
-    static final String DEF_ARKLINK = "ws://127.0.0.1:6700/onebot/v11/ws";
+    static final String DEF_ARKLINK = "ws://127.0.0.1:3001";
     static final String DEF_ASTRBOT = "ws://127.0.0.1:6199/ws";
 
     private static final String FILE = "arkdroid";
