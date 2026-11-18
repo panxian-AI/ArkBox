@@ -84,19 +84,14 @@ def syncManifest = tasks.register("syncManifest", Copy) {
     into layout.projectDirectory.dir("src/main/assets")
 }
 
-// Termux 侧脚本也只有一份（termux/），同上。
-// 顺手把行尾压成 LF：这些脚本会被推到手机里的 Termux 执行，
-// CRLF 会让 bash 报 "bad interpreter ... bash^M"。
+// ArkBox 的 Termux 侧脚本直接放在 assets/termux/（不再从根目录同步）。
+// 这里只做一件有价值的事：把行尾压成 LF——这些脚本会被推到手机里的
+// Termux 执行，CRLF 会让 bash 报 "bad interpreter ... bash^M"。
 def syncTermux = tasks.register("syncTermux") {
-    def src = rootProject.file("termux")
     def dst = layout.projectDirectory.dir("src/main/assets/termux")
-    inputs.dir(src)
+    inputs.dir(dst)
     outputs.dir(dst)
     doLast {
-        copy {
-            from src
-            into dst
-        }
         dst.asFile.listFiles()?.each { f ->
             if (f.isFile()) {
                 def text = f.getText("UTF-8").replace("\r\n", "\n")
