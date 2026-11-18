@@ -246,7 +246,7 @@ public class MainActivity extends AppCompatActivity {
                     //    改这些不用再发 APK；拉不到就退回 APK 内置（离线也能用）。
                     //    install.sh 是与 APK 版本强绑定的安装流程，始终用内置的。
                     "mkdir -p \"$HOME/.arkbox/hook\""
-                            + "; G=\"https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux\""
+                            + "; G=\"https://ghfast.top/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux\""
                             + "; H=\"https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux\""
                             + "; for f in arknet.sh astr qq box creds.py setpw.py"
                             + " hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"

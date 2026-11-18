@@ -5,7 +5,7 @@ STATE="$HOME/.arkbox"
 LOG="$STATE/qq.log"
 PID="$STATE/qq.pid"
 XVFB_PID="$STATE/xvfb.pid"
-VER="0.1.7"
+VER="0.1.8"
 
 pid_of() {
   if [ -f "$PID" ]; then
@@ -35,7 +35,7 @@ fix_hook() {
       "$STATE/rootfs/opt/qqstack/" 2>/dev/null && echo "  hook 载入器已从 App 缓存补进 rootfs"
   else
     for u in \
-      "https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux/hook" \
+      "https://ghfast.top/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux/hook" \
       "https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux/hook"; do
       curl -fsSL -m 40 -o "$STATE/rootfs/opt/qqstack/libslhook.so" "$u/libslhook.so" 2>/dev/null \
         && curl -fsSL -m 40 -o "$STATE/rootfs/opt/qqstack/libsnowluma_linux_resident_dispatch.so" "$u/libsnowluma_linux_resident_dispatch.so" 2>/dev/null \

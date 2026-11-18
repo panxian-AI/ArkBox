@@ -1,9 +1,16 @@
-# ArkBox v0.1.7
+# ArkBox v0.1.8
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **修复：线上脚本/manifest 拉不到（gh-proxy 不支持 raw 路径）**。实测
+  `https://gh-proxy.com/https://raw.githubusercontent.com/...` 直接返回它自己的 404 页面，
+  所以「脚本线上优先」一直静默退回到 APK 内置的旧脚本——这就是为什么改了 `qq` 你手机上没变化。
+  现已把 raw 类下载全部改成 **ghfast.top → raw 直连 → APK 内置**（gh-proxy 只用于 release 资产，
+  那条路是好的）。`Catalog` 的清单镜像同样调整。
+- **`qq vnc` 改成逐项自检**：进程（Xvfb/fluxbox/x11vnc）、端口（5900/6081）、组件是否安装、
+  noVNC 页面是否存在、`/tmp/*.log` 尾部，一次全打出来；`qq status` / `qq vnc` 首行会打印脚本版本。
 - **修复：6081 QQ 窗口一直打不开的真正原因**。`ensure_vnc` 用 `pgrep -f "websockif[y]"`
   判断 websockify 是否在跑——但那段脚本自己的命令行里就含有 websockify 这个词，
   **永远会匹配到自己**，于是 websockify 从来没被拉起过，6081 一直拒绝连接。

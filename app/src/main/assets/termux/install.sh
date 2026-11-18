@@ -560,7 +560,7 @@ fi
       cp -f "$HOME/.arkbox/hook/$f" "$STATE/hook/$f"
     fi
     if [ ! -s "$STATE/hook/$f" ]; then
-      for u in "https://gh-proxy.com/$RAW_BASE/hook/$f" "https://ghfast.top/$RAW_BASE/hook/$f" "$RAW_BASE/hook/$f"; do
+      for u in "https://ghfast.top/$RAW_BASE/hook/$f" "$RAW_BASE/hook/$f"; do
         curl -fsSL -m 120 -o "$STATE/hook/$f" "$u" 2>/dev/null && break
       done
     fi
