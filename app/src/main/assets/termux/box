@@ -22,16 +22,35 @@ pid_of() {
 }
 running() { pid_of >/dev/null 2>&1; }
 port_ok() { [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$1/" 2>/dev/null || echo 000)" != "000" ]; }
+# 3001 有监听 ≠ 接上 QQ：没有会话时 SnowLuma 照样会在端口上应答。
+# 真判据是登录后生成的 config/onebot_<QQ号>.json
+onebot_conf() { ls "$STATE"/rootfs/opt/snowluma/config/onebot_*.json 2>/dev/null | head -1; }
 
 start() {
-  if running && port_ok 3001; then
-    echo "SnowLuma 已经在跑（pid $(pid_of)）"
+  if running && port_ok 3001 && [ -n "$(onebot_conf)" ]; then
+    echo "SnowLuma 已经在跑（pid $(pid_of)）· OneBot 已接上 QQ"
     return 0
   fi
   if [ ! -f "$STATE/rootfs/opt/snowluma/index.mjs" ]; then
     echo "SnowLuma 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
     exit 1
   fi
+  if running; then
+    # 握手目录是 v0.1.6 才统一到 /tmp/snowluma-arkbox 的：旧进程用的是默认
+    # /tmp/snowluma-0，看不到新 hook。用标记文件保证「只迁移一次」，
+    # 否则未登录（还没生成 onebot_*.json）时会反复重启
+    want="arkbox"
+    have=$(cat "$STATE/.hookdir" 2>/dev/null || echo "")
+    if [ "$have" != "$want" ]; then
+      echo "SnowLuma 是旧配置起的（握手目录不一致），重启一次…"
+      stop
+      sleep 2
+    else
+      echo "SnowLuma 已经在跑（pid $(pid_of)）· 等 QQ 登录后会自动接上"
+      return 0
+    fi
+  fi
+  printf '%s\n' "arkbox" > "$STATE/.hookdir"
   if ! pgrep -f '/opt/QQ/q[q]' >/dev/null 2>&1; then
     echo "提示：QQ 没在跑，SnowLuma 注不进去。先 qq start。"
   fi
@@ -54,17 +73,15 @@ start() {
   '
   echo "SnowLuma 启动中（等 12 秒验证）…"
   sleep 12
-  if port_ok 3001; then
+  if [ -n "$(onebot_conf)" ]; then
     echo "✓ OneBot v11 就绪：HTTP :3000 / WS :3001 / WebUI :5099"
     echo "  WebUI 登录密码看：box token"
-    conf=$(ls "$STATE"/rootfs/opt/snowluma/config/onebot_*.json 2>/dev/null | head -1)
-    if [ -n "$conf" ]; then
-      tok=$(grep -o '"accessToken"[^,}]*' "$conf" 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)"/\1/')
-      [ -n "$tok" ] && echo "  AstrBot 里连 ws://127.0.0.1:3001 时 token 用：$tok"
-    fi
+    conf=$(onebot_conf)
+    tok=$(grep -o '"accessToken"[^,}]*' "$conf" 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)"/\1/')
+    [ -n "$tok" ] && echo "  AstrBot 里连 ws://127.0.0.1:3001 时 token 用：$tok"
   else
-    echo "✗ 3001 还没通。看日志：box log"
-    echo "  首次要等 QQ 登录后才会生成 config/onebot_<QQ号>.json（这时 3001 才起来）"
+    echo "✗ 还没接上 QQ（没有 config/onebot_<QQ号>.json）。看日志：box log"
+    echo "  顺序：qq start（确保 hook 已握手）→ 扫码登录 → box start"
     tail -n 12 "$LOG" 2>/dev/null
   fi
 }
@@ -78,10 +95,11 @@ stop() {
 }
 
 status() {
-  if running && port_ok 3001; then
-    echo "SnowLuma: 运行中（pid $(pid_of)）· OneBot 3001 / WebUI 5099"
+  if running && [ -n "$(onebot_conf)" ]; then
+    echo "SnowLuma: 运行中（pid $(pid_of)）· OneBot 已接上 QQ（:3000 / :3001）"
   elif running; then
-    echo "SnowLuma: 进程在（pid $(pid_of)）但 3001 不通——多半是 QQ 没登录，配置还没生成"
+    echo "SnowLuma: 进程在（pid $(pid_of)）但还没接上 QQ"
+    echo "  先 qq status 看 hook 有没有握手；没握手就 qq restart，登录后再 box restart"
   else
     echo "SnowLuma: 未运行（box start）"
   fi

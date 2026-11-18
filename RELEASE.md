@@ -1,9 +1,18 @@
-# ArkBox v0.1.5
+# ArkBox v0.1.6
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **`qq start` 会自己发现「在跑但没注入」并自动重启**：注入成功的标志是握手目录里出现
+  `mojo.<pid>.control.sock`（SnowLuma 就靠扫这个发现 QQ）。之前起了旧进程（v0.1.4 及以前）
+  的机器不用再手动 `qq restart`，App 一开就自动换成带注入的方式重启，登录态不丢。
+- **`box` 的「已经在跑」不再骗人**：原来只看 3001 有没有监听（没接上 QQ 也照样应答），
+  现在以 `config/onebot_<QQ号>.json` 为真判据；SnowLuma 是旧配置起的会用标记文件
+  （`~/.arkbox/.hookdir`）迁移一次握手目录，不会反复重启。
+- **脚本改为线上优先**：`qq`/`box`/`astr` 等纯 shell 脚本每次开 App 先从仓库 main 拉
+  最新版（三通道，失败退回 APK 内置），以后改这类脚本不用再发 APK。`install.sh` 仍用内置版
+  （与 APK 强绑定）。
 - **修复：QQ 收消息链路（最重要）**。查明根因：SnowLuma 官方靠往 QQ 进程写内存注入，
   在 proot 里这条路必然失效，所以之前「SnowLuma 在线但 OneBot 3001 不通」。
   现在改走 AstralNext 同款的 LD_PRELOAD 方案：QQ 启动时挂 `libslhook.so`（hook 载入器）→

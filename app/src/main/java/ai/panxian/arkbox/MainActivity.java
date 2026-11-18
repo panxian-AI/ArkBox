@@ -241,16 +241,26 @@ public class MainActivity extends AppCompatActivity {
                 BridgeService.start(this);
             }
             Termux.send(this,
-                    // 1) 先把 App 内置脚本刷新到 ~/.arkbox（发新版只装 APK 即生效，不用点安装/更新）
+                    // 1) 刷新脚本到 ~/.arkbox。
+                    //    纯 shell 脚本（qq/box/astr/creds/setpw/arknet）线上优先——
+                    //    改这些不用再发 APK；拉不到就退回 APK 内置（离线也能用）。
+                    //    install.sh 是与 APK 版本强绑定的安装流程，始终用内置的。
                     "mkdir -p \"$HOME/.arkbox/hook\""
-                            + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py"
+                            + "; G=\"https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux\""
+                            + "; H=\"https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux\""
+                            + "; for f in arknet.sh astr qq box creds.py setpw.py"
                             + " hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"
-                            + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; done"
+                            + " if curl -fsSL -m 25 -o \"$HOME/.arkbox/$f.new\" \"$G/$f\" 2>/dev/null"
+                            + " || curl -fsSL -m 25 -o \"$HOME/.arkbox/$f.new\" \"$H/$f\" 2>/dev/null; then"
+                            + " [ -s \"$HOME/.arkbox/$f.new\" ] && mv -f \"$HOME/.arkbox/$f.new\" \"$HOME/.arkbox/$f\""
+                            + "; rm -f \"$HOME/.arkbox/$f.new\""
+                            + "; else curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; fi; done"
+                            + "; curl -fsSL -m 60 -o \"$HOME/.arkbox/install.sh\" \"$ARKBOX_LOCAL/a/termux/install.sh\" 2>/dev/null || true"
                             + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
                             + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/box\" 2>/dev/null"
                             + "; for c in astr qq box; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\" 2>/dev/null; done"
                             // 2) 幂等拉起服务：装好的才起。顺序是硬要求——
-                            //    SnowLuma 要发现 QQ 进程才注得进去，必须 QQ 先活
+                            //    QQ 要带 hook 起来，SnowLuma 才扫得到握手 socket
                             + "; if [ -f \"$HOME/.arkbox/rootfs/opt/QQ/qq\" ]; then qq start; fi"
                             + "; if [ -f \"$HOME/.arkbox/rootfs/opt/snowluma/index.mjs\" ]; then box start; fi"
                             + "; if [ -f \"$HOME/.arkbox/rootfs/root/AstrBot/main.py\" ]; then astr start; fi",
