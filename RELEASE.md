@@ -1,9 +1,13 @@
-# ArkBox v0.1.3
+# ArkBox v0.1.4
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **AstrBot 源码进入独立备份位**：装机用的 AstrBot 4.30.0-alpha.1（含预构建 WebUI）已托管到本仓库
+  release `astrbot-4.30.0-alpha.1`，`install.sh` 与线上 `manifest.json` 都改用它作首选源，
+  ArkLink 的 `dist-v1` 降为同内容镜像，上游 `codeload` 只作最后兜底。该 release 附 `SOURCE.md`，
+  写了版本、sha256 和从头重新打包的完整命令——上游哪天删仓库也能自己重建。
 - **新增「打开 QQ 窗口」按钮**：QQ 跑在 proot 的 Xvfb 无头环境里，画面走 noVNC（6081）。
   现在在 App 里一键打开（自动连接、自适应缩放），扫码登录、验证、确认登录都在里面点完；
   没起来时会直接给「启动 QQ」一键路径。

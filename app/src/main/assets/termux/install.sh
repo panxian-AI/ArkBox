@@ -208,6 +208,13 @@ gh_urls() { # $1=文件名 → 依次输出 gh-proxy / ghfast / 直连
   echo "https://ghfast.top/$GH_DIST/$1"
   echo "$GH_DIST/$1"
 }
+# 独立备份位（ArkBox 仓库自己的 release），用于上游/中转仓库都不可用的极端情况
+AB_DIST="https://github.com/panxian-AI/ArkBox/releases/download"
+ab_urls() { # $1=tag $2=文件名 → 依次输出 gh-proxy / ghfast / 直连
+  echo "https://gh-proxy.com/$AB_DIST/$1/$2"
+  echo "https://ghfast.top/$AB_DIST/$1/$2"
+  echo "$AB_DIST/$1/$2"
+}
 
 # 完整性快检：gzip 结构 / zip 结构 / deb 的 ar 头。缓存命中就不再下载。
 cache_ok() { # $1=文件路径
@@ -244,7 +251,10 @@ fetch_pkg() { # $1=文件名 $2=落地路径  $3=失败是否致命（die|warn�
         https://mirrors.aliyun.com/ubuntu-cdimage/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz"
       ;;
     astrbot.tar.gz)
-      urls="$(gh_urls astrbot.tar.gz)
+      # 首选 ArkBox 自己的备份 release（含预构建 WebUI），ArkLink dist-v1 同内容镜像；
+      # 上游 codeload 只作最后兜底——它不带 dashboard/dist，装完 WebUI 要联网构建
+      urls="$(ab_urls astrbot-4.30.0-alpha.1 astrbot.tar.gz)
+        $(gh_urls astrbot.tar.gz)
         https://gh-proxy.com/https://codeload.github.com/AstrBotDevs/AstrBot/tar.gz/refs/heads/master"
       ;;
     linuxqq_arm64.deb)

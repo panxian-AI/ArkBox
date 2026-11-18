@@ -74,6 +74,20 @@ astr status / astr log  # AstrBot
 - `box log` 里出现注入失败 → 看 QQ 进程是否真在跑（`qq status`），proot 内 ptrace 与宿主机不同；
 - 登录态在 `/root/.config/QQ`，重启不用重新扫码。
 
+## 依赖产物与备份位
+
+装机要用的几个大文件都不靠上游现下（上游删仓库、改分支、限速都会让装机挂掉），全部固定在自己的 release 上：
+
+| 组件 | 大小 | 分发位 | 上游 / 备注 |
+|---|---|---|---|
+| `ubuntu-rootfs.tar.gz` | 29.9 MB | `ArkLink@dist-v1` | Ubuntu base 24.04 arm64，加了 pip 镜像与常用依赖 |
+| `linuxqq_arm64.deb` | 207.5 MB | `ArkLink@qq-3.2.34-arm64` | 官方 Linux QQ NT 3.2.34 |
+| `astrbot.tar.gz` | 16.4 MB | **`ArkBox@astrbot-4.30.0-alpha.1`** | AstrBot `master` 4.30.0-alpha.1，预置 `dashboard/dist`；重建步骤见该 release 的 `SOURCE.md` |
+| `snowluma-lite.tar.gz` | 8.1 MB | `ArkLink@snowluma-arm64-v2.4.2` | `TomyJan/SnowLuma` 官方 linux-arm64-lite |
+
+`manifest.json` 里每项都带 `sha256`，`install.sh` 下完必校验；上游 `codeload` 只在所有自有源都挂时兜底
+（它不带 AstrBot 的 `dashboard/dist`，装完 WebUI 得联网构建，属于能用但不推荐的路径）。
+
 ## 许可
 
 SnowLuma 是第三方项目（`TomyJan/SnowLuma`），分发的是其官方 lite 构建，使用需遵守其
