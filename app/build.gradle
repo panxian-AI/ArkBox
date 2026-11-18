@@ -34,10 +34,13 @@ android {
     }
 
     signingConfigs {
-        // 只有给了 keystore 才建配置；否则 release 就是未签名包（CI 里作为 artifact 发布）
+        // 覆盖升级的前提是「同一个签名」。CI 的 debug keystore 每次构建都是新生成的，
+        // 用它签出来的包互相覆盖不了（INSTALL_FAILED_UPDATE_INCOMPATIBLE）。
+        // 所以 CI 从仓库 secrets 里还原一个固定的 PKCS12 签名库，debug/release 都用它。
         if (System.getenv("ARKDROID_KEYSTORE")) {
             create("env") {
                 storeFile file(System.getenv("ARKDROID_KEYSTORE"))
+                storeType System.getenv("ARKDROID_STORE_TYPE") ?: "PKCS12"
                 storePassword System.getenv("ARKDROID_STORE_PASSWORD") ?: ""
                 keyAlias System.getenv("ARKDROID_KEY_ALIAS") ?: ""
                 keyPassword System.getenv("ARKDROID_KEY_PASSWORD") ?: ""
@@ -48,6 +51,10 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
+            // debug 也用固定签名：本地/CI 产出的包都能互相覆盖，旧包也能直接升级
+            if (System.getenv("ARKDROID_KEYSTORE")) {
+                signingConfig signingConfigs.getByName("env")
+            }
         }
         release {
             minifyEnabled false

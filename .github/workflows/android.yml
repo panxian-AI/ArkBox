@@ -53,6 +53,21 @@ jobs:
       - name: Termux 脚本语法自检
         run: bash -n app/src/main/assets/termux/install.sh
 
+      - name: 还原固定签名库（覆盖升级必需）
+        run: |
+          if [ -z "${{ secrets.ARKBOX_KEYSTORE_B64 }}" ]; then
+            echo "::warning::没有 ARKBOX_KEYSTORE_B64，这次的包会换签名，装不了覆盖升级"
+            exit 0
+          fi
+          printf '%s' "${{ secrets.ARKBOX_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/arkbox.p12"
+          {
+            echo "ARKDROID_KEYSTORE=$RUNNER_TEMP/arkbox.p12"
+            echo "ARKDROID_STORE_TYPE=PKCS12"
+            echo "ARKDROID_STORE_PASSWORD=${{ secrets.ARKBOX_STORE_PASSWORD }}"
+            echo "ARKDROID_KEY_ALIAS=${{ secrets.ARKBOX_KEY_ALIAS }}"
+            echo "ARKDROID_KEY_PASSWORD=${{ secrets.ARKBOX_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+
       - name: 构建 APK
         env:
           ARKDROID_BUILD_PYTHON: python
@@ -74,6 +89,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/release/app-release.apk
           body_path: RELEASE.md
           overwrite_files: true

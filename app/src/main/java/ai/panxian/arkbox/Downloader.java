@@ -281,7 +281,7 @@ final class Downloader {
         conn.setConnectTimeout(connectMs);
         conn.setReadTimeout(readMs);
         conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent", "ArkDroid/0.2 (+https://github.com/panxian-AI/ArkDroid)");
+        conn.setRequestProperty("User-Agent", "ArkBox/0.2 (+https://github.com/panxian-AI/ArkBox)");
         conn.setRequestProperty("Accept", "*/*");
         conn.setRequestProperty("Accept-Encoding", "identity");
         if (rangeEnd >= 0) {

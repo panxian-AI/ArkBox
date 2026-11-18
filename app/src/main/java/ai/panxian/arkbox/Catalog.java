@@ -204,7 +204,7 @@ final class Catalog {
         conn.setConnectTimeout(timeoutMs);
         conn.setReadTimeout(timeoutMs);
         conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("User-Agent", "ArkDroid/0.2");
+        conn.setRequestProperty("User-Agent", "ArkBox/0.2");
         try {
             if (conn.getResponseCode() / 100 != 2) {
                 throw new IOException("HTTP " + conn.getResponseCode());

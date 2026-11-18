@@ -77,7 +77,7 @@ public class PanelActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setSupportZoom(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " ArkDroid/0.3");
+        s.setUserAgentString(s.getUserAgentString() + " ArkBox/0.2");
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient());
         web.setBackgroundColor(Color.parseColor("#0F141A"));
