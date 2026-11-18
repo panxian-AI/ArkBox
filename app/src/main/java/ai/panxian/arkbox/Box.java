@@ -10,22 +10,22 @@ import java.net.URL;
  * ArkBox 本机链路（一台手机自运行，零注入）：
  *
  * <pre>
- * LinuxQQ 官方客户端(Xvfb 无头) → ArkLink(:6900 UI 通道) → SnowLink(OneBot v11 :3000/:3001) → AstrBot(:6185)
+ * LinuxQQ 官方客户端(Xvfb 无头) ← SnowLuma 注入 hook(OneBot v11 :3000/:3001) → AstrBot(:6185)
  * </pre>
  *
  * <p>安装全部由 termux/install.sh 的 --qq-only 段完成：apt 装 QQ arm64 deb + Xvfb/xdotool/noVNC，
- * pip 装 ArkLink + SnowLink。我们只负责下发命令和读状态。
- * 扫码登录走 noVNC（6081），AstrBot 面板连 SnowLink 的 OneBot WS（3001）。
+ * Node 24 + SnowLuma（hook 注入收信）+ 可选 ArkLink（x11 发信兜底）。我们只负责下发命令和读状态。
+ * 扫码登录走 noVNC（6081），AstrBot 面板连 SnowLuma 的 OneBot WS（3001）。
  */
 final class Box {
 
-    /** SnowLink WebUI 端口（状态/调试/配置编辑）。 */
+    /** SnowLuma WebUI 端口（状态/调试/配置编辑）。 */
     static final int WEBUI_PORT = 5099;
 
     /** ArkLink api（HTTP + SSE）端口，官方客户端通道的底座。 */
     static final int ARKLINK_PORT = 6900;
 
-    /** SnowLink 的 OneBot v11 正向 WS——AstrBot 的 aiocqhttp 连的是它。 */
+    /** SnowLuma 的 OneBot v11 正向 WS——AstrBot 的 aiocqhttp 连的是它。 */
     static final int ONEBOT_PORT = 3001;
 
     /** noVNC 端口：浏览器开这个页面看 QQ 画面、扫码登录。 */
@@ -51,7 +51,7 @@ final class Box {
      */
     static boolean install(Context ctx) {
         BridgeService.serve(ctx); // 让 Termux 能把日志 POST 回来
-        LogBus.append("装本机链路：QQ deb + Xvfb/xdotool + ArkLink/SnowLink（install.sh --qq-only）");
+        LogBus.append("装本机链路：QQ deb + Xvfb/xdotool + Node24/SnowLuma/ArkLink（install.sh --qq-only）");
         return Termux.send(ctx,
                 "if [ ! -s \"$HOME/.arkbox/install.sh\" ]; then"
                         + " echo \"✗ install.sh 不在（先在 AstrBot 卡点一次「安装 / 更新」）\""
@@ -61,15 +61,18 @@ final class Box {
                 60);
     }
 
-    /** 启动本机链路（ArkLink + SnowLink + QQ 无头）。 */
+    /**
+     * 启动本机链路。顺序不能反：SnowLuma 要「发现 QQ 进程」才注得进去，
+     * 所以先把 QQ（Xvfb 无头）拉起来，再起 SnowLuma。
+     */
     static boolean start(Context ctx) {
         BridgeService.serve(ctx);
         return Termux.send(ctx,
-                "~/.arkbox/box start; ~/.arkbox/qq start",
-                300);
+                "~/.arkbox/qq start; ~/.arkbox/box start",
+                400);
     }
 
-    /** 探测 SnowLink WebUI(5099)、OneBot WS(3001)、ArkLink(6900)、noVNC(6081)。要在后台线程调。 */
+    /** 探测 SnowLuma WebUI(5099)、OneBot WS(3001)、ArkLink(6900，可选)、noVNC(6081)。要在后台线程调。 */
     static void probe() {
         webuiUp = alive(WEBUI_PORT);
         onebotUp = alive(ONEBOT_PORT);
@@ -86,7 +89,7 @@ final class Box {
             c.setReadTimeout(900);
             c.setRequestMethod("GET");
             int code = c.getResponseCode();
-            // 401 也算在线——SnowLink 的 OneBot/WebUI 要 token，会先回 401/426
+            // 401/426 也算在线——OneBot/WebUI 要 token，会先回 401
             return code > 0;
         } catch (IOException e) {
             lastError = e.getClass().getSimpleName();
@@ -104,22 +107,26 @@ final class Box {
                     + (novncUp ? " · 扫码页 6081 就绪" : "");
         }
         if (webuiUp) {
-            return "SnowLink 在线（WebUI " + WEBUI_PORT + "），OneBot " + ONEBOT_PORT + " 未确认（box log 看）";
+            return "SnowLuma 在线（WebUI " + WEBUI_PORT + "），OneBot " + ONEBOT_PORT
+                    + " 还没起来——多半是 QQ 没登录，登录后会自动生成配置";
+        }
+        if (novncUp) {
+            return "QQ 在跑（扫码页 6081），SnowLuma 没起（box start）";
         }
         if (arklinkUp) {
-            return "ArkLink 在线（" + ARKLINK_PORT + "），SnowLink 未启动（box start）";
+            return "ArkLink 在线（" + ARKLINK_PORT + "），SnowLuma 未启动";
         }
         return "没响应（还没装，或者没启动）";
     }
 
     /**
-     * 确保 SnowLink 配置目录存在（config/onebot_&lt;uin&gt;.json 由 snowlink init 生成，
-     * 这里只做兜底建目录，不猜内容）。
+     * 兜底建 SnowLuma 的配置目录。真正的 onebot_&lt;uin&gt;.json 要等 QQ 登录后
+     * 由 SnowLuma 自己解密 login.db 才能生成，这里不猜内容。
      */
     static void seedOneBotConfig(Context ctx) {
         // proot-run.sh 是安装器 2/9 步（解完 rootfs 后）才生成的。没装完就调会
         // 报 "No such file or directory"，日志里一片假错——先判存在再调。
         Termux.send(ctx, "if [ -x \"$HOME/.arkbox/proot-run.sh\" ]; then "
-                + "~/.arkbox/proot-run.sh /bin/bash -c 'mkdir -p /root/.snowlink/config'; fi", 30);
+                + "~/.arkbox/proot-run.sh /bin/bash -c 'mkdir -p /opt/snowluma/config'; fi", 30);
     }
 }

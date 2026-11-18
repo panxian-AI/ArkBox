@@ -252,6 +252,13 @@ fetch_pkg() { # $1=文件名 $2=落地路径  $3=失败是否致命（die|warn�
         https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/qq-3.2.34-arm64/linuxqq_3.2.34-53644_arm64.deb
         https://github.com/panxian-AI/ArkLink/releases/download/qq-3.2.34-arm64/linuxqq_3.2.34-53644_arm64.deb"
       ;;
+    snowluma-lite.tar.gz|SnowLuma-v2.4.2-linux-arm64-lite.tar.gz)
+      # 官方源是 TomyJan/SnowLuma，但它会消失，所以固定分发位在自己仓库
+      SL="https://github.com/panxian-AI/ArkLink/releases/download/snowluma-arm64-v2.4.2/SnowLuma-v2.4.2-linux-arm64-lite.tar.gz"
+      urls="https://gh-proxy.com/$SL
+        https://ghfast.top/$SL
+        $SL"
+      ;;
     *) urls="" ;;
   esac
   # ③ 断点续传下载：每个镜像最多试 3 次，断线从已有字节继续；下完做完整性校验
@@ -534,28 +541,89 @@ fi
   ok "本机 QQ 就绪（ArkLink UI 通道驱动，扫码走 noVNC 6081）"
 fi
 
-# ------------------------------------------------------------------ 8/9 ArkLink + SnowLink
+# ------------------------------------------------------------------ 8/9 SnowLuma（收信）+ ArkLink（发信兜底）
 if [ "$SKIP_QQ" = "1" ]; then
   step "8/9 跳过（--no-qq）"
 else
-  step "8/9 ArkLink + SnowLink（官方客户端通道 + OneBot v11）"
-  # --qq-only 时 3-6/9 被跳过，rootfs 里可能连 python3 都没有，这里自己兜住
-  "$STATE/proot-run.sh" /bin/bash -c "
+  step "8/9 SnowLuma：Node 24 + hook 注入 + OneBot v11"
+
+  # Node 24：SnowLuma 要 ^24.22.1，Ubuntu 24.04 自带的 18 太老
+  "$STATE/proot-run.sh" /bin/bash -c '
 set -e
 export DEBIAN_FRONTEND=noninteractive
-command -v python3 >/dev/null 2>&1 && command -v pip3 >/dev/null 2>&1 || {
+if /opt/node24/bin/node -v >/dev/null 2>&1; then
+  echo "  Node 已装：$(/opt/node24/bin/node -v)"
+else
   apt-get update -q
-  apt-get install -y --no-install-recommends python3 python3-pip ca-certificates
-}
-if ! python3 -c 'import arklink' 2>/dev/null || ! python3 -c 'import snowlink' 2>/dev/null; then
-  pip3 install --no-cache-dir -q --break-system-packages -i $PY_INDEX \
-    https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/archive/refs/heads/main.tar.gz \
-    https://gh-proxy.com/https://github.com/panxian-AI/SnowLink/archive/refs/heads/main.tar.gz
+  apt-get install -y --no-install-recommends xz-utils ca-certificates curl >/dev/null
+  echo "  下 Node 24（arm64，约 50MB）…"
+  mkdir -p /opt/node24
+  for u in https://npmmirror.com/mirrors/node/v24.22.1/node-v24.22.1-linux-arm64.tar.xz \
+           https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz; do
+    curl -fSL --retry 3 -C - -o /tmp/node24.tar.xz "$u" && break
+  done
+  tar xJf /tmp/node24.tar.xz -C /opt/node24 --strip-components=1
+  rm -f /tmp/node24.tar.xz
+  echo "  Node 就位：$(/opt/node24/bin/node -v)"
 fi
-python3 -c 'import arklink, snowlink; print("  arklink + snowlink 导入正常")'
-  " || die "ArkLink/SnowLink 装失败（检查网络）"
-  "$STATE/proot-run.sh" /bin/bash -c 'mkdir -p /root/.snowlink/config'
-  ok "ArkLink + SnowLink 就绪（OneBot v11 :3000/:3001，WebUI :5099）"
+  ' || die "装 Node 24 失败（检查网络）"
+  ok "Node 24 就绪"
+
+  # SnowLuma 包：App 下好的优先，其次走镜像（8MB，很快）
+  fetch_pkg snowluma-lite.tar.gz "$STATE/snowluma-lite.tar.gz" warn || true
+  mkdir -p "$ROOTFS/root/.arkbox"
+  if [ -s "$STATE/snowluma-lite.tar.gz" ]; then
+    cp -f "$STATE/snowluma-lite.tar.gz" "$ROOTFS/root/.arkbox/snowluma-lite.tar.gz"
+    ok "SnowLuma 包已递进 rootfs（$(du -h "$STATE/snowluma-lite.tar.gz" | cut -f1)）"
+  else
+    die "拿不到 SnowLuma 包（App 里先下载「SnowLuma」，或检查网络）"
+  fi
+
+  "$STATE/proot-run.sh" /bin/bash -c '
+set -e
+mkdir -p /opt/snowluma
+if [ ! -f /opt/snowluma/index.mjs ]; then
+  tar xzf /root/.arkbox/snowluma-lite.tar.gz -C /opt/snowluma
+  echo "  SnowLuma 解包完成：$(cat /opt/snowluma/release.json | head -3 | tr -d "\n ")"
+else
+  echo "  SnowLuma 已装，复用"
+fi
+# 用我们自己的 Node，不再依赖系统 node
+ln -sf /opt/node24/bin/node /opt/snowluma/node
+chmod +x /opt/snowluma/launcher.sh
+# hookAutoLoad：每次发现 QQ 进程就注入——少了这行它只起个网页面板
+/opt/node24/bin/node -e "
+const fs = require("fs");
+const f = "/opt/snowluma/config/runtime.json";
+fs.mkdirSync("/opt/snowluma/config", { recursive: true });
+const base = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};
+base.hookAutoLoad = true;
+base.autoStart = true;
+fs.writeFileSync(f, JSON.stringify(base, null, 2));
+console.log("  hookAutoLoad = true");
+"
+# proot 里 sysctl 改不动内核参数，但同一 proot 命名空间内 ptrace 是通的；
+# 真机若注入失败，看 /opt/snowluma 的日志再决定是否需要宿主机配合
+echo "  SnowLuma 就位：/opt/snowluma（launcher.sh + native/snowluma-linux-arm64.so）"
+  ' || die "SnowLuma 部署失败"
+  ok "SnowLuma 就绪（收信 + OneBot v11，WebUI 5099）"
+
+  # ArkLink：发信兜底（SnowLuma 发不出去时用 x11 点界面）
+  "$STATE/proot-run.sh" /bin/bash -c '
+set -e
+if python3 -c "import arklink" 2>/dev/null; then
+  echo "  arklink 已装，跳过"
+else
+  if ! command -v python3 >/dev/null 2>&1 || ! command -v pip3 >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -q
+    apt-get install -y --no-install-recommends python3 python3-pip ca-certificates
+  fi
+  pip3 install --no-cache-dir -q --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/archive/refs/heads/main.tar.gz
+fi
+python3 -c "import arklink; print(\"  arklink 导入正常\")"
+  ' || warn "ArkLink 没装上（不影响收发：SnowLuma 自己就能收发，ArkLink 只是发信兜底）"
 fi
 
 # ------------------------------------------------------------------ 9/9 收尾
@@ -585,17 +653,26 @@ report_prog "done 全部装完了 ✓"
 
 cat <<'EOT'
 
-装完了。完整链路（一台手机，全程 127.0.0.1，零注入）：
+装完了。完整链路（一台手机，全程 127.0.0.1）：
 
-  LinuxQQ 官方客户端(Xvfb) → ArkLink(:6900 UI通道) → SnowLink(OneBot v11 :3000/:3001) → AstrBot(:6185)
+  LinuxQQ 官方客户端(Xvfb 无头)
+        │  ← SnowLuma 注入 hook（收信 + 发消息 + 引用/语音）
+        ▼
+  SnowLuma  OneBot v11  HTTP :3000 / WS :3001 / WebUI :5099
+        │
+        ▼
+  AstrBot  面板 :6185
 
 傻瓜式用法（App 会自动做，手敲才需要看这里）：
 
-  box start       # 起 ArkLink + SnowLink，WebUI http://127.0.0.1:5099
-  qq start        # 起 QQ（Xvfb 无头），首次扫码：http://127.0.0.1:6081/vnc.html
+  qq start        # 先起 QQ（Xvfb 无头）。首次扫码：http://127.0.0.1:6081/vnc.html
+  box start       # 再起 SnowLuma（它要发现 QQ 进程才注得进去），WebUI :5099
   astr start      # 起 AstrBot，面板 http://127.0.0.1:6185
                   # 面板里加「AI聊天平台 → aiocqhttp(OneBot v11)」正向 WS ws://127.0.0.1:3001/
-                  # token 用 SnowLink config/onebot_<QQ号>.json 里 wsServers[0].accessToken
+                  # token 看 /opt/snowluma/config/onebot_<QQ号>.json 的 wsServers[0].accessToken
+                  # （box start 成功时也会直接把 token 打出来）
+
+首次顺序很重要：QQ 扫码登录 → 才有 config/onebot_<QQ号>.json → 3001 才会起来。
 
 排障：qq log / box log / astr log；状态：qq status / box status / astr status
 EOT

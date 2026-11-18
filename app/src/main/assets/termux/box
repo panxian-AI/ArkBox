@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ArkBox box 控制命令：start/stop/status/log
-# ArkLink(serve api :6900) + SnowLink(OneBot v11 :3000/:3001, WebUI :5099)
+# SnowLuma：hook 注入官方 QQ 进程，出标准 OneBot v11
+#   HTTP http://127.0.0.1:3000    WS ws://127.0.0.1:3001    WebUI http://127.0.0.1:5099
 STATE="$HOME/.arkbox"
 LOG="$STATE/box.log"
 PID="$STATE/box.pid"
@@ -10,61 +11,66 @@ pid_of() {
     p=$(tr -dc '0-9' < "$PID" 2>/dev/null)
     if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then echo "$p"; return 0; fi
   fi
-  p=$(pgrep -f 'snowlink ru[n]' 2>/dev/null | head -n 1)
+  p=$(pgrep -f 'snowluma/index\.mjs|launcher\.sh' 2>/dev/null | head -n 1)
   if [ -n "$p" ]; then echo "$p" > "$PID" 2>/dev/null; echo "$p"; return 0; fi
   rm -f "$PID"
   return 1
 }
 running() { pid_of >/dev/null 2>&1; }
-
-port_ok() {
-  code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$1/" 2>/dev/null || echo 000)
-  [ "$code" != "000" ] && [ "$code" != "" ]
-}
+port_ok() { [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$1/" 2>/dev/null || echo 000)" != "000" ]; }
 
 start() {
   if running && port_ok 3001; then
-    echo "ArkLink + SnowLink 已经在跑（pid $(pid_of)）"
+    echo "SnowLuma 已经在跑（pid $(pid_of)）"
     return 0
   fi
-  if [ ! -d "$STATE/rootfs/root/.snowlink" ] && [ ! -d "$STATE/rootfs/root/snowlink" ]; then
-    echo "SnowLink 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
+  if [ ! -f "$STATE/rootfs/opt/snowluma/index.mjs" ]; then
+    echo "SnowLuma 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
     exit 1
   fi
-  # 一条命令把整条链拉起来：ArkLink api → SnowLink run（配置在 /root/.snowlink）
+  if ! pgrep -f '/opt/QQ/q[q]' >/dev/null 2>&1; then
+    echo "提示：QQ 没在跑，SnowLuma 注不进去。先 qq start。"
+  fi
+  export ARK_BG_LOG="$LOG"
   "$STATE/proot-run.sh" --bg "$PID" /bin/bash -c '
   export HOME=/root TZ=Asia/Shanghai
-  mkdir -p /root/.snowlink
-  cd /root/.snowlink
-  pgrep -f "arklink serve ap[i]" >/dev/null || { arklink serve api >/tmp/arklink.log 2>&1 </dev/null & sleep 3; }
-  exec python3 -m snowlink run
+  export SNOWLUMA_ACCEPT_EULA=1 SNOWLUMA_ACCEPT_PRIVACY=1
+  export SNOWLUMA_LOG_LEVEL=info SNOWLUMA_LOG_FILE_LEVEL=info
+  cd /opt/snowluma
+  # hookAutoLoad 在 config/runtime.json 里，装的时候就写好了
+  exec ./launcher.sh
   '
-  echo "ArkLink + SnowLink 启动中（等 8 秒验证）…"
-  sleep 8
+  echo "SnowLuma 启动中（等 12 秒验证）…"
+  sleep 12
   if port_ok 3001; then
     echo "✓ OneBot v11 就绪：HTTP :3000 / WS :3001 / WebUI :5099"
+    conf=$(ls "$STATE"/rootfs/opt/snowluma/config/onebot_*.json 2>/dev/null | head -1)
+    if [ -n "$conf" ]; then
+      tok=$(grep -o '"accessToken"[^,}]*' "$conf" 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)"/\1/')
+      [ -n "$tok" ] && echo "  AstrBot 里连 ws://127.0.0.1:3001 时 token 用：$tok"
+    fi
   else
-    echo "✗ 3001 还没通（SnowLink 可能要先生成配置），最近日志："
-    tail -n 15 "$LOG" 2>/dev/null
-    echo "首次配置：qq 登录后跑 python3 -m snowlink init --uin <QQ号>"
+    echo "✗ 3001 还没通。看日志：box log"
+    echo "  首次要等 QQ 登录后才会生成 config/onebot_<QQ号>.json（这时 3001 才起来）"
+    tail -n 12 "$LOG" 2>/dev/null
   fi
 }
 
 stop() {
   p=$(pid_of 2>/dev/null) && kill "$p" 2>/dev/null
   sleep 2
-  "$STATE/proot-run.sh" /bin/bash -c 'pkill -f "snowlink ru[n]" 2>/dev/null; pkill -f "arklink serve ap[i]" 2>/dev/null || true' || true
+  "$STATE/proot-run.sh" /bin/bash -c 'pkill -f "snowluma/index\.mjs" 2>/dev/null || true' >/dev/null 2>&1 || true
   rm -f "$PID"
-  echo "ArkLink + SnowLink 已停止"
+  echo "SnowLuma 已停止"
 }
 
 status() {
   if running && port_ok 3001; then
-    echo "ArkLink + SnowLink: 运行中（pid $(pid_of)）"
+    echo "SnowLuma: 运行中（pid $(pid_of)）· OneBot 3001 / WebUI 5099"
   elif running; then
-    echo "进程在（pid $(pid_of)）但 3001 不通"
+    echo "SnowLuma: 进程在（pid $(pid_of)）但 3001 不通——多半是 QQ 没登录，配置还没生成"
   else
-    echo "ArkLink + SnowLink: 未运行"
+    echo "SnowLuma: 未运行（box start）"
   fi
 }
 

@@ -25,9 +25,9 @@ final class Catalog {
 
     /** 清单本身也走多镜像：GitHub 直连在国内经常不通。 */
     private static final String[] MANIFEST_MIRRORS = {
-            "https://ghfast.top/https://raw.githubusercontent.com/panxian-AI/ArkDroid/main/dist/manifest.json",
-            "https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkDroid/main/dist/manifest.json",
-            "https://raw.githubusercontent.com/panxian-AI/ArkDroid/main/dist/manifest.json",
+            "https://ghfast.top/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/manifest.json",
+            "https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/manifest.json",
+            "https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/manifest.json",
     };
 
     static final class Item {

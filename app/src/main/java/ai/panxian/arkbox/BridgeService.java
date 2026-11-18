@@ -191,7 +191,7 @@ public class BridgeService extends Service {
                 }
             }
             astrOnline = portOpen(6185);
-            // 中继上游：SnowLink OneBot 3001（ArkLink 6900 兜底）
+            // 中继上游：SnowLuma OneBot 3001（ArkLink 6900 兜底）
             arkOnline = portOpen(3001) || portOpen(6900);
             refreshNotification();
         });

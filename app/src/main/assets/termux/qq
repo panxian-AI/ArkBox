@@ -28,15 +28,16 @@ start() {
     return 0
   fi
   # 虚拟屏 + noVNC（缺一个都不行：QQ 要屏，人要扫码）
+  export ARK_BG_LOG="$LOG"
   "$STATE/proot-run.sh" --bg "$XVFB_PID" /bin/bash -c '
   pgrep -x Xvfb >/dev/null || { Xvfb :1 -screen 0 1280x720x16 >/tmp/xvfb.log 2>&1 </dev/null & sleep 2; }
   pgrep -x fluxbox >/dev/null || { fluxbox >/tmp/fluxbox.log 2>&1 </dev/null & }
   pgrep -x x11vnc  >/dev/null || { x11vnc -display :1 -noshm -nopw -forever -shared -rfbport 5900 -localhost >/tmp/x11vnc.log 2>&1 </dev/null & }
   pgrep -f "websockif[y]" >/dev/null || { websockify --web /usr/share/novnc 127.0.0.1:6081 127.0.0.1:5900 >/tmp/novnc.log 2>&1 </dev/null & }
   export DISPLAY=:1
-  mkdir -p /tmp/qq-home
   cd /root
-  HOME=/tmp/qq-home DISPLAY=:1 TZ=Asia/Shanghai \
+  # HOME 必须是 /root：SnowLuma 也要读 /root/.config/QQ/login.db 才能注入
+  HOME=/root DISPLAY=:1 TZ=Asia/Shanghai \
     /opt/QQ/qq --no-sandbox --disable-gpu --disable-software-rasterizer \
     --disable-gpu-compositing --disable-dev-shm-usage
   '
@@ -44,7 +45,7 @@ start() {
   sleep 10
   if running; then
     echo "✓ QQ 已启动（pid $(pid_of)）。首次登录扫码：http://127.0.0.1:6081/vnc.html"
-    echo "  登录态在 /tmp/qq-home，重启不用重新扫码"
+    echo "  登录态在 /root/.config/QQ，重启不用重新扫码"
   else
     echo "✗ QQ 没起来，最近日志："
     tail -n 15 "$LOG" 2>/dev/null
@@ -66,7 +67,7 @@ status() {
     echo "QQ: 未运行"
   fi
   # 顺带报 ArkLink / SnowLink 状态，一眼看全链路
-  for p in 6900 3001 5099 6081; do
+  for p in 3000 3001 5099 6081; do
     code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
     [ "$code" != "000" ] && echo "  端口 $p: 通($code)" || echo "  端口 $p: 不通"
   done

@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "updated": "2026-11-18",
   "note": "App 会并发测速后挑最快的镜像下载；改这个文件不用重发 APK（App 启动时会尝试拉一次线上的）。",
   "components": [
@@ -48,34 +48,6 @@
       ]
     },
     {
-      "id": "napcat",
-      "title": "NapCat 压缩包",
-      "desc": "NapCat.Shell.zip（用户自备，注入 QQ；装完自动配 Milky）",
-      "file": "napcat.zip",
-      "kind": "file",
-      "size": 35945744,
-      "sha256": "bbc7804f5e4a73a58c0564891acf40002b56c149019357fa638da4dfe8f1c286",
-      "mirrors": [
-        "https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip",
-        "https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip",
-        "https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/napcat-shell/NapCat.Shell.zip"
-      ]
-    },
-    {
-      "id": "arklink",
-      "title": "ArkLink 源码",
-      "desc": "把 NapCat 的 Milky 翻译成 OneBot 11（中继连它）",
-      "file": "arklink.tar.gz",
-      "kind": "tar",
-      "size": 0,
-      "sha256": "",
-      "mirrors": [
-        "https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/arklink.tar.gz",
-        "https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/arklink.tar.gz",
-        "https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/arklink.tar.gz"
-      ]
-    },
-    {
       "id": "astrbot",
       "title": "AstrBot 源码",
       "desc": "AstrBot 4.30.0-alpha.1 源码 + WebUI 构建产物（离线内置，不再首启联网下载）",
@@ -87,6 +59,20 @@
         "https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/astrbot.tar.gz",
         "https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/astrbot.tar.gz",
         "https://github.com/panxian-AI/ArkLink/releases/download/dist-v1/astrbot.tar.gz"
+      ]
+    },
+    {
+      "id": "snowluma",
+      "title": "SnowLuma 收信层",
+      "desc": "hook 注入 QQ 进程，出标准 OneBot v11（收信 + 发消息 + 引用/语音）。官方 linux-arm64 lite 包，8 MB",
+      "file": "snowluma-lite.tar.gz",
+      "kind": "tar",
+      "size": 8064625,
+      "sha256": "f3bc5cdc660fc23701d64e16082aead3159bf24968f7c08cff49933cba7b5753",
+      "mirrors": [
+        "https://github.com/panxian-AI/ArkLink/releases/download/snowluma-arm64-v2.4.2/SnowLuma-v2.4.2-linux-arm64-lite.tar.gz",
+        "https://gh-proxy.com/https://github.com/panxian-AI/ArkLink/releases/download/snowluma-arm64-v2.4.2/SnowLuma-v2.4.2-linux-arm64-lite.tar.gz",
+        "https://ghfast.top/https://github.com/panxian-AI/ArkLink/releases/download/snowluma-arm64-v2.4.2/SnowLuma-v2.4.2-linux-arm64-lite.tar.gz"
       ]
     }
   ]
