@@ -1,9 +1,19 @@
-# ArkBox v0.1.4
+# ArkBox v0.1.5
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **修复：QQ 收消息链路（最重要）**。查明根因：SnowLuma 官方靠往 QQ 进程写内存注入，
+  在 proot 里这条路必然失效，所以之前「SnowLuma 在线但 OneBot 3001 不通」。
+  现在改走 AstralNext 同款的 LD_PRELOAD 方案：QQ 启动时挂 `libslhook.so`（hook 载入器）→
+  加载 `libsnowluma_linux_resident_dispatch.so` → 接上 lite 包自带的
+  `snowluma-linux-arm64.so`，通过 `/tmp/snowluma-arkbox` 与 SnowLuma 握手。
+  两个载入器（共 112KB）已进仓库 assets，装机自动就位。
+  ⚠️ 注入必须在登录之前：如果之前扫码登录过，跑 `qq restart` 换成带注入的方式重启（不用重新扫码）。
+- **修复：6081 QQ 窗口打不开**。原来 `qq start` 发现已跑就直接返回，Xvfb/noVNC 挂了不会补起。
+  现在 VNC 链独立成 `ensure_vnc`，每次 start（以及 QQ 已在跑时）都会先补齐；
+  另加 `qq restart` 子命令。
 - **AstrBot 源码进入独立备份位**：装机用的 AstrBot 4.30.0-alpha.1（含预构建 WebUI）已托管到本仓库
   release `astrbot-4.30.0-alpha.1`，`install.sh` 与线上 `manifest.json` 都改用它作首选源，
   ArkLink 的 `dist-v1` 降为同内容镜像，上游 `codeload` 只作最后兜底。该 release 附 `SOURCE.md`，

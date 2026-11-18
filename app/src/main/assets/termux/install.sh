@@ -546,9 +546,32 @@ else
   echo "NO_QQ_DEB"
   exit 3
 fi
-[ -x /opt/QQ/qq ] && echo "  QQ 就位：/opt/QQ/qq（官方客户端本体，不注入任何东西）"
+[ -x /opt/QQ/qq ] && echo "  QQ 就位：/opt/QQ/qq（启动时经 LD_PRELOAD 注入 SnowLuma hook 载入器）"
   ' || die "装 QQ 失败（要 --no-qq 就加这个参数重跑）"
-  ok "本机 QQ 就绪（ArkLink UI 通道驱动，扫码走 noVNC 6081）"
+
+  # SnowLuma hook 载入器：官方注入走 ptrace/manual-map，在 proot 里都会失效
+  # （写内存被降级成写指针）。改走 LD_PRELOAD：libslhook.so 挂进 QQ 进程 →
+  # dlopen resident_dispatch → 加载 /opt/snowluma/native/snowluma-linux-arm64.so
+  # （lite 包自带）→ 经 SNOWLUMA_HOOK_RUNTIME_DIR 与 SnowLuma 主进程握手。
+  # 两个载入器共 112KB，App assets / 线上仓库 hook/ 都有。
+  mkdir -p "$STATE/hook" "$ROOTFS/opt/qqstack"
+  for f in libslhook.so libsnowluma_linux_resident_dispatch.so; do
+    if [ ! -s "$STATE/hook/$f" ] && [ -s "$HOME/.arkbox/hook/$f" ]; then
+      cp -f "$HOME/.arkbox/hook/$f" "$STATE/hook/$f"
+    fi
+    if [ ! -s "$STATE/hook/$f" ]; then
+      for u in "https://gh-proxy.com/$RAW_BASE/hook/$f" "https://ghfast.top/$RAW_BASE/hook/$f" "$RAW_BASE/hook/$f"; do
+        curl -fsSL -m 120 -o "$STATE/hook/$f" "$u" 2>/dev/null && break
+      done
+    fi
+    if [ -s "$STATE/hook/$f" ]; then
+      cp -f "$STATE/hook/$f" "$ROOTFS/opt/qqstack/$f"
+      ok "hook 载入器 $f 就位（/opt/qqstack/）"
+    else
+      warn "hook 载入器 $f 没拿到——QQ 能登录、能发消息，但收消息会失效"
+    fi
+  done
+  ok "本机 QQ 就绪（扫码走 noVNC 6081，hook 载入器 /opt/qqstack/）"
 fi
 
 # ------------------------------------------------------------------ 8/9 SnowLuma（收信）+ ArkLink（发信兜底）

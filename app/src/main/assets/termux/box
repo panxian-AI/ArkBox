@@ -40,6 +40,9 @@ start() {
   export HOME=/root TZ=Asia/Shanghai
   export SNOWLUMA_ACCEPT_EULA=1 SNOWLUMA_ACCEPT_PRIVACY=1
   export SNOWLUMA_LOG_LEVEL=info SNOWLUMA_LOG_FILE_LEVEL=info
+  # hook 握手目录：必须和 qq start 里 LD_PRELOAD 注入时给的同一个值，
+  # QQ 进程里的 hook 靠它跟 SnowLuma 主进程对上暗号
+  export SNOWLUMA_HOOK_RUNTIME_DIR=/tmp/snowluma-arkbox
   cd /opt/snowluma
   # 重置过密码的话把 bootstrap 密码带上——只在 webui.json 缺失/损坏时被采用，
   # 平时放着无害，webui.json 坏了还能靠它找回登录

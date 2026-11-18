@@ -242,8 +242,9 @@ public class MainActivity extends AppCompatActivity {
             }
             Termux.send(this,
                     // 1) 先把 App 内置脚本刷新到 ~/.arkbox（发新版只装 APK 即生效，不用点安装/更新）
-                    "mkdir -p \"$HOME/.arkbox\""
-                            + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py; do"
+                    "mkdir -p \"$HOME/.arkbox/hook\""
+                            + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py"
+                            + " hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"
                             + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; done"
                             + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
                             + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/box\" 2>/dev/null"

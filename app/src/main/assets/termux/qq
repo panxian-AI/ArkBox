@@ -18,33 +18,52 @@ pid_of() {
 }
 running() { pid_of >/dev/null 2>&1; }
 
-start() {
-  if [ ! -f "$STATE/rootfs/opt/QQ/qq" ]; then
-    echo "QQ 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
-    exit 1
-  fi
-  if running; then
-    echo "QQ 已经在跑（pid $(pid_of)）"
-    return 0
-  fi
-  # 虚拟屏 + noVNC（缺一个都不行：QQ 要屏，人要扫码）
+# 虚拟屏 + noVNC。独立成函数：QQ 已在跑但 VNC 链挂了时也能单独补起
+ensure_vnc() {
   export ARK_BG_LOG="$LOG"
   "$STATE/proot-run.sh" --bg "$XVFB_PID" /bin/bash -c '
   pgrep -x Xvfb >/dev/null || { Xvfb :1 -screen 0 1280x720x16 >/tmp/xvfb.log 2>&1 </dev/null & sleep 2; }
   pgrep -x fluxbox >/dev/null || { fluxbox >/tmp/fluxbox.log 2>&1 </dev/null & }
   pgrep -x x11vnc  >/dev/null || { x11vnc -display :1 -noshm -nopw -forever -shared -rfbport 5900 -localhost >/tmp/x11vnc.log 2>&1 </dev/null & }
   pgrep -f "websockif[y]" >/dev/null || { websockify --web /usr/share/novnc 127.0.0.1:6081 127.0.0.1:5900 >/tmp/novnc.log 2>&1 </dev/null & }
+  '
+}
+
+start() {
+  if [ ! -f "$STATE/rootfs/opt/QQ/qq" ]; then
+    echo "QQ 还没装。先在 App 里点「安装 / 更新」跑完安装器。"
+    exit 1
+  fi
+  # 先保证虚拟屏 + noVNC 在（就算 QQ 已在跑，6081 挂了也要补）
+  ensure_vnc
+  if running; then
+    echo "QQ 已经在跑（pid $(pid_of)）"
+    echo "  扫码页: http://127.0.0.1:6081/vnc.html"
+    echo "  若机器人不回话（老进程没带注入），跑: qq restart"
+    return 0
+  fi
+  if [ ! -f "$STATE/rootfs/opt/qqstack/libslhook.so" ]; then
+    echo "! hook 载入器缺失（rootfs/opt/qqstack/libslhook.so），先跑一次「安装 / 更新」"
+    echo "  现在仍会启动 QQ，但收消息会失效。"
+  fi
+  export ARK_BG_LOG="$LOG"
+  "$STATE/proot-run.sh" --bg "$XVFB_PID" /bin/bash -c '
   export DISPLAY=:1
   cd /root
-  # HOME 必须是 /root：SnowLuma 也要读 /root/.config/QQ/login.db 才能注入
+  # HOME 必须是 /root：SnowLuma 也要读 /root/.config/QQ/login.db 才能握手
+  # LD_PRELOAD 注入必须在登录之前——QQ 崩溃自重启（--relaunch）会丢掉它，
+  # 那种情况表现为「界面登录着但机器人不回话」，跑 qq restart 即可，不用重新扫码
   HOME=/root DISPLAY=:1 TZ=Asia/Shanghai \
+  LD_PRELOAD=/opt/qqstack/libslhook.so \
+  SLHOOK_DELAY_MS=0 SLHOOK_WAIT_WRAPPER=1 \
+  SNOWLUMA_HOOK_RUNTIME_DIR=/tmp/snowluma-arkbox \
     /opt/QQ/qq --no-sandbox --disable-gpu --disable-software-rasterizer \
     --disable-gpu-compositing --disable-dev-shm-usage
   '
   echo "QQ 启动中（等 10 秒验证）…"
   sleep 10
   if running; then
-    echo "✓ QQ 已启动（pid $(pid_of)）。首次登录扫码：http://127.0.0.1:6081/vnc.html"
+    echo "✓ QQ 已启动（pid $(pid_of)，已带 hook 注入）。首次登录扫码：http://127.0.0.1:6081/vnc.html"
     echo "  登录态在 /root/.config/QQ，重启不用重新扫码"
   else
     echo "✗ QQ 没起来，最近日志："
@@ -66,7 +85,10 @@ status() {
   else
     echo "QQ: 未运行"
   fi
-  # 顺带报 ArkLink / SnowLink 状态，一眼看全链路
+  [ -f "$STATE/rootfs/opt/qqstack/libslhook.so" ] \
+    && echo "  hook 载入器: 就位" \
+    || echo "  hook 载入器: 缺失（跑一次「安装 / 更新」，否则收消息失效）"
+  # 顺带报 OneBot / WebUI / noVNC 状态，一眼看全链路
   for p in 3000 3001 5099 6081; do
     code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
     [ "$code" != "000" ] && echo "  端口 $p: 通($code)" || echo "  端口 $p: 不通"
@@ -77,9 +99,10 @@ status() {
 log() { tail -n "${2:-50}" "$LOG" 2>/dev/null || echo "还没有日志"; }
 
 case "${1:-status}" in
-  start)  start ;;
-  stop)   stop ;;
-  status) status ;;
-  log)    shift; log "$@" ;;
-  *) echo "用法: qq start|stop|status|log [行数]"; exit 1 ;;
+  start)   start ;;
+  stop)    stop ;;
+  restart) stop; sleep 1; start ;;
+  status)  status ;;
+  log)     shift; log "$@" ;;
+  *) echo "用法: qq start|stop|restart|status|log [行数]"; exit 1 ;;
 esac

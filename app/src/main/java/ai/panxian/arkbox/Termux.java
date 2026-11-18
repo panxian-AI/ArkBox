@@ -52,7 +52,7 @@ final class Termux {
             }
             String scripts = ""
                     // 六个 Termux 侧脚本全部从 assets 端点拿（bootstrap 自带 curl 或用 arknet 兜底）
-                    + " mkdir -p \"$HOME/.arkbox\"; all=1"
+                    + " mkdir -p \"$HOME/.arkbox/hook\"; all=1"
                     + "; for f in arknet.sh install.sh astr qq box creds.py setpw.py; do"
                     + " if command -v curl >/dev/null 2>&1; then"
                     + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\""
@@ -60,6 +60,10 @@ final class Termux {
                     + " > \"$HOME/.arkbox/$f\" 2>/dev/null; fi"
                     + "; if [ -s \"$HOME/.arkbox/$f\" ]; then echo \"✓ $f\""
                     + "; else all=0; echo \"✗ $f 没拿到\"; fi; done"
+                    // hook 载入器拿不到不阻断安装：安装器里还有线上兜底
+                    + "; for f in hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"
+                    + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null"
+                    + " || true; done"
                     + "; chmod +x \"$HOME/.arkbox/install.sh\" \"$HOME/.arkbox/astr\""
                     + " \"$HOME/.arkbox/qq\" \"$HOME/.arkbox/box\" 2>/dev/null"
                     + "; for c in astr qq box; do ln -sf \"$HOME/.arkbox/$c\" \"$PREFIX/bin/$c\"; done"
