@@ -137,12 +137,68 @@ PY
   echo "  只填纯 QQ 号匹配不上私聊；白名单命中前 /sid 也会被丢掉（鸡生蛋）"
 }
 
+# 白名单直接改配置文件（不用在面板里翻）：wl show/off/on/add <UMO>/del <UMO>/clear
+# 改完自动重启一次，立刻生效
+wl() {
+  sub="${1:-show}"; arg="${2:-}"
+  if ! installed; then echo "AstrBot 还没装好。"; exit 1; fi
+  mkdir -p "$ROOTFS/root/.arkbox" 2>/dev/null
+  cat > "$ROOTFS/root/.arkbox/wl.py" <<'PY'
+import json, sys
+p = "/root/AstrBot/data/cmd_config.json"
+sub = sys.argv[1] if len(sys.argv) > 1 else "show"
+arg = sys.argv[2] if len(sys.argv) > 2 else ""
+try:
+    c = json.load(open(p, encoding="utf-8"))
+except Exception as e:
+    print("读取配置失败:", e); sys.exit(1)
+ps = c.setdefault("platform_settings", {})
+wl = ps.setdefault("id_whitelist", [])
+if sub == "show":
+    print("enable_id_white_list =", ps.get("enable_id_white_list"))
+    print("id_whitelist =", wl if wl else "（空 = 不检查）")
+    print("admins_id =", c.get("admins_id") or "（空）")
+    print("wl_ignore_admin_on_group/friend =",
+          ps.get("wl_ignore_admin_on_group"), "/", ps.get("wl_ignore_admin_on_friend"))
+    sys.exit(0)
+if sub == "off":
+    ps["enable_id_white_list"] = False
+elif sub == "on":
+    ps["enable_id_white_list"] = True
+elif sub == "add":
+    if not arg:
+        print("要给出 UMO，例如 aiocqhttp:FriendMessage:123456789"); sys.exit(2)
+    if arg not in wl:
+        wl.append(arg)
+elif sub == "del":
+    if arg in wl:
+        wl.remove(arg)
+elif sub == "clear":
+    wl.clear()
+else:
+    print("未知子命令:", sub); sys.exit(2)
+with open(p, "w", encoding="utf-8") as f:
+    json.dump(c, f, ensure_ascii=False, indent=2)
+print("已写入: enable_id_white_list =", ps.get("enable_id_white_list"), "| id_whitelist =", wl)
+PY
+  out=$("$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/wl.py "$sub" "$arg" 2>&1)
+  echo "$out"
+  case "$sub" in
+    off|on|add|del|clear)
+      case "$out" in
+        已写入*) echo "重启 AstrBot 让配置生效…"; stop >/dev/null 2>&1; sleep 1; start ;;
+      esac
+      ;;
+  esac
+}
+
 case "${1:-status}" in
   start) start ;;
   stop) stop ;;
   restart) stop; sleep 1; start ;;
   status) status ;;
   diag) diag ;;
+  wl) shift; wl "$@" ;;
   log) tail -n "${2:-80}" "$LOG" 2>/dev/null || echo "还没日志" ;;
   creds) "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/creds.py ;;
   setpw|resetpw)
@@ -181,5 +237,5 @@ case "${1:-status}" in
     ;;
   shell) echo "交互 shell 不可用（App 不是终端）。用：astr run '命令'，例如 astr run 'ls /root'" ;;
   run) shift; "$STATE/proot-run.sh" /bin/bash -c "$*" ;;
-  *) echo "用法: astr {start|stop|restart|status|diag|log|creds|resetpw|shell|run}" ;;
+  *) echo "用法: astr {start|stop|restart|status|diag|wl show|wl off|wl on|wl add <UMO>|wl del <UMO>|wl clear|log|creds|resetpw|shell|run}" ;;
 esac
