@@ -58,7 +58,7 @@ final class Termux {
                     + " curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\""
                     + "; else bash \"$HOME/.arkbox/arknet.sh\" GET \"$ARKBOX_LOCAL/a/termux/$f\""
                     + " > \"$HOME/.arkbox/$f\" 2>/dev/null; fi"
-                    + "; if [ -s \"$HOME/.arkbox/$f\" ]; then echo \"✓ $f\""
+                    + "; if [ -s \"$HOME/.arkbox/$f\" ]; then chmod +x \"$HOME/.arkbox/$f\" 2>/dev/null; echo \"✓ $f\""
                     + "; else all=0; echo \"✗ $f 没拿到\"; fi; done"
                     // hook 载入器拿不到不阻断安装：安装器里还有线上兜底
                     + "; for f in hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"

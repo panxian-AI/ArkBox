@@ -252,7 +252,7 @@ public class MainActivity extends AppCompatActivity {
                             + " hook/libslhook.so hook/libsnowluma_linux_resident_dispatch.so; do"
                             + " if curl -fsSL -m 25 -o \"$HOME/.arkbox/$f.new\" \"$G/$f\" 2>/dev/null"
                             + " || curl -fsSL -m 25 -o \"$HOME/.arkbox/$f.new\" \"$H/$f\" 2>/dev/null; then"
-                            + " [ -s \"$HOME/.arkbox/$f.new\" ] && mv -f \"$HOME/.arkbox/$f.new\" \"$HOME/.arkbox/$f\""
+                            + " [ -s \"$HOME/.arkbox/$f.new\" ] && { mv -f \"$HOME/.arkbox/$f.new\" \"$HOME/.arkbox/$f\"; chmod +x \"$HOME/.arkbox/$f\" 2>/dev/null; }"
                             + "; rm -f \"$HOME/.arkbox/$f.new\""
                             + "; else curl -fsSL -m 60 -o \"$HOME/.arkbox/$f\" \"$ARKBOX_LOCAL/a/termux/$f\" 2>/dev/null || true; fi; done"
                             + "; curl -fsSL -m 60 -o \"$HOME/.arkbox/install.sh\" \"$ARKBOX_LOCAL/a/termux/install.sh\" 2>/dev/null || true"

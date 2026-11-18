@@ -1,9 +1,20 @@
-# ArkBox v0.1.6
+# ArkBox v0.1.7
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
 
 ## 这版改了什么
 
+- **修复：6081 QQ 窗口一直打不开的真正原因**。`ensure_vnc` 用 `pgrep -f "websockif[y]"`
+  判断 websockify 是否在跑——但那段脚本自己的命令行里就含有 websockify 这个词，
+  **永远会匹配到自己**，于是 websockify 从来没被拉起过，6081 一直拒绝连接。
+  改用 bash 内建 `/dev/tcp` 探端口，谁都不骗；另加 `qq vnc` 子命令单独修 VNC 链并打印日志。
+- **hook 载入器自动自愈**。旧安装器装的机器 rootfs 里没有 `/opt/qqstack/libslhook.so`，
+  现在启动 QQ 时自动把 App 缓存（`~/.arkbox/hook/`）里的载入器补进 rootfs，
+  没有缓存就在线拉，不用再重跑安装器。
+- **不再谎报「已带 hook 注入」**：启动后以握手 socket 为准分三档如实报告
+  （已握手 / 载入器已挂等 SnowLuma / 缺载入器没注入）。
+- **修脚本执行 Permission denied（退出码 126）**：脚本下载循环里逐个 chmod +x，
+  不再依赖循环后的统一 chmod（它可能没跑完你就敲命令了）。
 - **`qq start` 会自己发现「在跑但没注入」并自动重启**：注入成功的标志是握手目录里出现
   `mojo.<pid>.control.sock`（SnowLuma 就靠扫这个发现 QQ）。之前起了旧进程（v0.1.4 及以前）
   的机器不用再手动 `qq restart`，App 一开就自动换成带注入的方式重启，登录态不丢。

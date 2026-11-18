@@ -24,6 +24,26 @@ running() { pid_of >/dev/null 2>&1; }
 HOOKDIR="$STATE/rootfs/tmp/snowluma-arkbox"
 hook_ok() { ls "$HOOKDIR"/mojo.*.control.sock >/dev/null 2>&1; }
 
+# 自愈：把 App 每次开 App 都会刷新到 ~/.arkbox/hook 的载入器递进 rootfs。
+# 旧版安装器装的机器（rootfs/opt/qqstack 里没有）不用重跑安装器，这里直接补
+fix_hook() {
+  [ -f "$STATE/rootfs/opt/qqstack/libslhook.so" ] && return 0
+  mkdir -p "$STATE/rootfs/opt/qqstack" 2>/dev/null
+  if [ -f "$STATE/hook/libslhook.so" ]; then
+    cp -f "$STATE/hook/libslhook.so" "$STATE/hook/libsnowluma_linux_resident_dispatch.so" \
+      "$STATE/rootfs/opt/qqstack/" 2>/dev/null && echo "  hook 载入器已从 App 缓存补进 rootfs"
+  else
+    for u in \
+      "https://gh-proxy.com/https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux/hook" \
+      "https://raw.githubusercontent.com/panxian-AI/ArkBox/main/app/src/main/assets/termux/hook"; do
+      curl -fsSL -m 40 -o "$STATE/rootfs/opt/qqstack/libslhook.so" "$u/libslhook.so" 2>/dev/null \
+        && curl -fsSL -m 40 -o "$STATE/rootfs/opt/qqstack/libsnowluma_linux_resident_dispatch.so" "$u/libsnowluma_linux_resident_dispatch.so" 2>/dev/null \
+        && { echo "  hook 载入器已在线补齐"; return 0; }
+    done
+    rm -f "$STATE/rootfs/opt/qqstack/libslhook.so" "$STATE/rootfs/opt/qqstack/libsnowluma_linux_resident_dispatch.so" 2>/dev/null
+  fi
+}
+
 # 虚拟屏 + noVNC。独立成函数：QQ 已在跑但 VNC 链挂了时也能单独补起
 ensure_vnc() {
   export ARK_BG_LOG="$LOG"
@@ -31,7 +51,10 @@ ensure_vnc() {
   pgrep -x Xvfb >/dev/null || { Xvfb :1 -screen 0 1280x720x16 >/tmp/xvfb.log 2>&1 </dev/null & sleep 2; }
   pgrep -x fluxbox >/dev/null || { fluxbox >/tmp/fluxbox.log 2>&1 </dev/null & }
   pgrep -x x11vnc  >/dev/null || { x11vnc -display :1 -noshm -nopw -forever -shared -rfbport 5900 -localhost >/tmp/x11vnc.log 2>&1 </dev/null & }
-  pgrep -f "websockif[y]" >/dev/null || { websockify --web /usr/share/novnc 127.0.0.1:6081 127.0.0.1:5900 >/tmp/novnc.log 2>&1 </dev/null & }
+  # 不能用 pgrep -f 匹配 websockify：本段脚本的命令行里就有 websockify 这个词，
+  # 会自己匹配自己 → websockify 永远不会被拉起，6081 一直拒绝连接就是它。
+  # 改用探测端口（bash 内建 /dev/tcp，rootfs 里没有 curl 也能用）
+  (exec 3<>"/dev/tcp/127.0.0.1/6081") 2>/dev/null || { websockify --web /usr/share/novnc 127.0.0.1:6081 127.0.0.1:5900 >/tmp/novnc.log 2>&1 </dev/null & }
   '
 }
 
@@ -54,6 +77,7 @@ start() {
     stop
     sleep 3
   fi
+  fix_hook
   if [ ! -f "$STATE/rootfs/opt/qqstack/libslhook.so" ]; then
     echo "! hook 载入器缺失（rootfs/opt/qqstack/libslhook.so），先跑一次「安装 / 更新」"
     echo "  现在仍会启动 QQ，但收消息会失效。"
@@ -75,11 +99,30 @@ start() {
   echo "QQ 启动中（等 10 秒验证）…"
   sleep 10
   if running; then
-    echo "✓ QQ 已启动（pid $(pid_of)，已带 hook 注入）。首次登录扫码：http://127.0.0.1:6081/vnc.html"
+    if hook_ok; then
+      echo "✓ QQ 已启动（pid $(pid_of)），hook 已握手。"
+    elif [ -f "$STATE/rootfs/opt/qqstack/libslhook.so" ]; then
+      echo "✓ QQ 已启动（pid $(pid_of)），载入器已挂（握手要等 SnowLuma 侧跑起来：box start）。"
+    else
+      echo "✓ QQ 已启动（pid $(pid_of)），⚠️ 没带 hook（载入器缺失），收消息会失效。"
+    fi
+    echo "  扫码页: http://127.0.0.1:6081/vnc.html（打不开就跑: qq vnc）"
     echo "  登录态在 /root/.config/QQ，重启不用重新扫码"
   else
     echo "✗ QQ 没起来，最近日志："
     tail -n 15 "$LOG" 2>/dev/null
+  fi
+}
+
+# 单独修 VNC 链（6081 打不开时用，不用动 QQ）
+vnc() {
+  ensure_vnc
+  sleep 3
+  if curl -s -o /dev/null -m 3 "http://127.0.0.1:6081/vnc.html" 2>/dev/null; then
+    echo "✓ 6081 已通: http://127.0.0.1:6081/vnc.html"
+  else
+    echo "✗ 6081 还是不通，rootfs 里的日志："
+    "$STATE/proot-run.sh" /bin/bash -c 'tail -n 8 /tmp/novnc.log /tmp/x11vnc.log /tmp/xvfb.log /tmp/fluxbox.log 2>/dev/null; echo ---; command -v websockify || echo "websockify 不存在（安装器第 7 步没装上，重跑安装器）"'
   fi
 }
 
@@ -121,6 +164,7 @@ case "${1:-status}" in
   stop)    stop ;;
   restart) stop; sleep 1; start ;;
   status)  status ;;
+  vnc)     vnc ;;
   log)     shift; log "$@" ;;
-  *) echo "用法: qq start|stop|restart|status|log [行数]"; exit 1 ;;
+  *) echo "用法: qq start|stop|restart|status|vnc|log [行数]"; exit 1 ;;
 esac
