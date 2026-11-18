@@ -51,7 +51,7 @@ jobs:
         run: python tools/selftest_python.py
 
       - name: Termux 脚本语法自检
-        run: bash -n termux/install.sh
+        run: bash -n app/src/main/assets/termux/install.sh
 
       - name: 构建 APK
         env:
