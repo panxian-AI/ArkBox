@@ -5,7 +5,8 @@ STATE="$HOME/.arkbox"
 LOG="$STATE/qq.log"
 PID="$STATE/qq.pid"
 XVFB_PID="$STATE/xvfb.pid"
-VER="0.1.8"
+VER="0.1.9"
+COMPONENT="$STATE/rootfs/opt/snowluma/native/snowluma-linux-arm64.so"
 
 pid_of() {
   if [ -f "$PID" ]; then
@@ -45,6 +46,20 @@ fix_hook() {
   fi
 }
 
+# 自愈：真正的注入组件（libslhook 硬编码找 /opt/snowluma/native/snowluma-linux-arm64.so）。
+# 缺了就从 rootfs 里缓存的 SnowLuma 包里补——缺它和缺载入器一样收不了消息
+fix_component() {
+  [ -s "$COMPONENT" ] && return 0
+  local tb="$STATE/rootfs/root/.arkbox/snowluma-lite.tar.gz"
+  if [ -s "$tb" ]; then
+    mkdir -p "$STATE/rootfs/opt/snowluma/native"
+    tar xzf "$tb" -C "$STATE/rootfs/opt/snowluma" ./native/snowluma-linux-arm64.so 2>/dev/null \
+      && [ -s "$COMPONENT" ] && { echo "  hook 组件已从 SnowLuma 包补进 /opt/snowluma/native/"; return 0; }
+  fi
+  echo "! hook 组件缺失（$COMPONENT）且 SnowLuma 缓存包不在，重跑一次「安装 / 更新」"
+  return 1
+}
+
 # 虚拟屏 + noVNC。独立成函数：QQ 已在跑但 VNC 链挂了时也能单独补起
 ensure_vnc() {
   export ARK_BG_LOG="$LOG"
@@ -79,6 +94,7 @@ start() {
     sleep 3
   fi
   fix_hook
+  fix_component
   if [ ! -f "$STATE/rootfs/opt/qqstack/libslhook.so" ]; then
     echo "! hook 载入器缺失（rootfs/opt/qqstack/libslhook.so），先跑一次「安装 / 更新」"
     echo "  现在仍会启动 QQ，但收消息会失效。"
@@ -161,6 +177,9 @@ status() {
   else
     echo "QQ: 未运行"
   fi
+  if [ ! -s "$COMPONENT" ]; then
+    echo "  hook 组件: 缺失（/opt/snowluma/native/snowluma-linux-arm64.so，重跑安装器或 qq restart 自动补）"
+  fi
   if [ ! -f "$STATE/rootfs/opt/qqstack/libslhook.so" ]; then
     echo "  hook 载入器: 缺失（跑一次「安装 / 更新」，否则收消息失效）"
   elif hook_ok; then
@@ -168,6 +187,7 @@ status() {
   else
     echo "  hook: 没握手（qq restart 换成带注入的方式重启）"
   fi
+  echo "  提示: SnowLuma 网页里那个「加载」按钮在 ArkBox 里点不了——它是官方注入器（ptrace 写内存），proot 下必报 component loading failed；hook 由 LD_PRELOAD 自动接上，不用点它"
   # 顺带报 OneBot / WebUI / noVNC 状态，一眼看全链路
   for p in 3000 3001 5099 6081; do
     code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
