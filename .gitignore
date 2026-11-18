@@ -1,0 +1,19 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+*.log
+*.apk
+*.keystore
+*.jks
+
+# 构建时从 dist/ 与 termux/ 同步进来的
+/app/src/main/assets/manifest.json
+/app/src/main/assets/termux/
+__pycache__/

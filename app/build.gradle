@@ -1,0 +1,113 @@
+apply plugin: "com.android.application"
+apply plugin: "com.chaquo.python"
+
+android {
+    namespace "ai.panxian.arkbox"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "ai.panxian.arkbox"
+        minSdk 24
+        // 28 是刻意的：Android 10+（W^X）禁止 App 执行私有目录里的二进制，
+        // 而嵌入式 Termux 运行时必须 exec proot/bash。Termux 官方也钉在 28。
+        targetSdk 28
+        versionCode 32
+        versionName "0.5.9"
+
+        ndk {
+            // 手机几乎都是 arm64；x86_64 留给模拟器。
+            // 不列 armeabi-v7a：Chaquopy 的 Python 3.13 没提供 32 位 ARM 构建。
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
+        python {
+            // Chaquopy 需要本机 CPython 跑构建期 pip，并据此对齐目标版本
+            buildPython(System.getenv("ARKDROID_BUILD_PYTHON") ?: "python")
+            // arkbridge 用了 tomllib（3.11+），必须显式指定，否则 Chaquopy 默认给 3.8
+            version "3.13"
+            pyc {
+                src = false
+            }
+            // 生产代码零第三方依赖：内置的 arkbridge 只用标准库
+            pip {}
+        }
+    }
+
+    signingConfigs {
+        // 只有给了 keystore 才建配置；否则 release 就是未签名包（CI 里作为 artifact 发布）
+        if (System.getenv("ARKDROID_KEYSTORE")) {
+            create("env") {
+                storeFile file(System.getenv("ARKDROID_KEYSTORE"))
+                storePassword System.getenv("ARKDROID_STORE_PASSWORD") ?: ""
+                keyAlias System.getenv("ARKDROID_KEY_ALIAS") ?: ""
+                keyPassword System.getenv("ARKDROID_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            if (System.getenv("ARKDROID_KEYSTORE")) {
+                signingConfig signingConfigs.getByName("env")
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "com.google.android.material:material:1.12.0"
+}
+
+// 组件清单只有一份（dist/manifest.json），构建时同步进 assets，避免两处漂移
+def syncManifest = tasks.register("syncManifest", Copy) {
+    from rootProject.file("dist/manifest.json")
+    into layout.projectDirectory.dir("src/main/assets")
+}
+
+// Termux 侧脚本也只有一份（termux/），同上。
+// 顺手把行尾压成 LF：这些脚本会被推到手机里的 Termux 执行，
+// CRLF 会让 bash 报 "bad interpreter ... bash^M"。
+def syncTermux = tasks.register("syncTermux") {
+    def src = rootProject.file("termux")
+    def dst = layout.projectDirectory.dir("src/main/assets/termux")
+    inputs.dir(src)
+    outputs.dir(dst)
+    doLast {
+        copy {
+            from src
+            into dst
+        }
+        dst.asFile.listFiles()?.each { f ->
+            if (f.isFile()) {
+                def text = f.getText("UTF-8").replace("\r\n", "\n")
+                f.setText(text, "UTF-8")
+            }
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "preBuild") {
+        task.dependsOn(syncManifest, syncTermux)
+    }
+}
