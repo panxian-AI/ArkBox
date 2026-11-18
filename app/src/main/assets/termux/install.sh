@@ -584,7 +584,7 @@ set -e
 mkdir -p /opt/snowluma
 if [ ! -f /opt/snowluma/index.mjs ]; then
   tar xzf /root/.arkbox/snowluma-lite.tar.gz -C /opt/snowluma
-  echo "  SnowLuma 解包完成：$(cat /opt/snowluma/release.json | head -3 | tr -d "\n ")"
+  echo "  SnowLuma 解包完成（arm64 lite）"
 else
   echo "  SnowLuma 已装，复用"
 fi
@@ -592,7 +592,7 @@ fi
 ln -sf /opt/node24/bin/node /opt/snowluma/node
 chmod +x /opt/snowluma/launcher.sh
 # hookAutoLoad：每次发现 QQ 进程就注入——少了这行它只起个网页面板
-/opt/node24/bin/node -e "
+cat > /tmp/slcfg.cjs <<JS
 const fs = require("fs");
 const f = "/opt/snowluma/config/runtime.json";
 fs.mkdirSync("/opt/snowluma/config", { recursive: true });
@@ -601,7 +601,9 @@ base.hookAutoLoad = true;
 base.autoStart = true;
 fs.writeFileSync(f, JSON.stringify(base, null, 2));
 console.log("  hookAutoLoad = true");
-"
+JS
+/opt/node24/bin/node /tmp/slcfg.cjs
+rm -f /tmp/slcfg.cjs
 # proot 里 sysctl 改不动内核参数，但同一 proot 命名空间内 ptrace 是通的；
 # 真机若注入失败，看 /opt/snowluma 的日志再决定是否需要宿主机配合
 echo "  SnowLuma 就位：/opt/snowluma（launcher.sh + native/snowluma-linux-arm64.so）"
