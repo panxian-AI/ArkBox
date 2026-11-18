@@ -101,6 +101,12 @@ def syncTermux = tasks.register("syncTermux") {
     }
 }
 
+syncTermux.configure {
+    // syncTermux 对 assets/termux 做行尾归一化，而 syncManifest 会往同一个 assets
+    // 目录写 manifest.json——Gradle 要求显式声明先后关系，否则校验报 implicit dependency
+    mustRunAfter(syncManifest)
+}
+
 tasks.configureEach { task ->
     if (task.name == "preBuild") {
         task.dependsOn(syncManifest, syncTermux)
