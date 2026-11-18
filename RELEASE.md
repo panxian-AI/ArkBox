@@ -1,3 +1,37 @@
+# ArkBox v0.1.10
+
+一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
+
+## 这版改了什么
+
+**只改 AstrBot 脚本，不改 App 逻辑**——修「面板加完白名单后 `/sid` 没反应、私聊也不回」。
+
+- **`astr wl` 系列：不动面板直接改白名单**
+  - `astr wl show` 看当前 `enable_id_white_list` / `id_whitelist`
+  - `astr wl off` 临时关白名单（排查用）
+  - `astr wl add <UMO>` / `astr wl del <UMO>` / `astr wl clear`
+  - `astr wl on` 再打开
+  改完写回 `data/cmd_config.json` 并自动重启 AstrBot。绕开网页面板，是因为面板要登录、
+  还要点到「配置 → 平台 → 白名单」四层，改完不重启还不生效。
+
+- **`astr diag`：一条命令看清为什么没反应**
+  打印 6185（AstrBot 网页）/3000/3001（OneBot）端口、`platform` 里是不是 `aiocqhttp`、
+  地址是不是 `ws://127.0.0.1:3001`（正向 WS）、`admins_id` 的实际类型、
+  `wl_ignore_admin_on_friend/group`、以及日志里 `allowlist` 命中了几条。
+
+- **为什么白名单会连 `/sid` 一起吃掉**（源码级确认）：
+  `whitelist_check/stage.py` 在白名单非空、且会话 UMO 不在名单里时直接 `stop_event()`，
+  事件在进入 `ProcessStage` 之前就被丢掉——所以 `/sid` 也不会回。
+  正确的填法是把**整串 UMO** 填进 `id_whitelist`：私聊 `aiocqhttp:FriendMessage:<QQ号>`、
+  群聊 `aiocqhttp:GroupMessage:<群号>`，只填 QQ 号是匹配不上的。
+  另外 `admins_id` 若被存成数字，`str(sender_id) == admin_id` 恒为 False，管理员豁免也会失效。
+
+- **内置脚本同步到 `astr 0.1.9`**：这版 APK 装完即带 `diag` 与 `wl`，不依赖线上拉取。
+  （v0.1.9 那个 APK 的 tag 打在脚本改动之前，所以它内置的还是旧 `astr`——这就是你
+  `astr wl` 报「用法」的原因。）
+
+---
+
 # ArkBox v0.1.9
 
 一台安卓手机自运行 **QQ → SnowLuma（OneBot v11）→ AstrBot** 全链路。一个 APK，装完点几下就能用。
