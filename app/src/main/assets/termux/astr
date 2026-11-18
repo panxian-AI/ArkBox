@@ -8,6 +8,7 @@ ROOTFS="$STATE/rootfs"
 LOG="$STATE/astr.log"
 PID="$STATE/astr.pid"
 MAIN="$ROOTFS/root/AstrBot/main.py"
+VER="0.1.9"
 
 # pidfile 不可信（可能为空/丢失）：先验 pidfile，不行就按命令行特征兜底找进程，
 # 找到的话顺手把 pid 写回 pidfile，避免起出第二个实例撞 6185 端口
@@ -72,6 +73,7 @@ stop() {
 }
 
 status() {
+  echo "astr 脚本版本 $VER"
   install_state
   if installed; then
     echo "AstrBot 源码就位：/root/AstrBot"
@@ -84,11 +86,63 @@ status() {
   [ -f "$LOG" ] && echo "日志最后一行：$(tail -n 1 "$LOG" 2>/dev/null)"
 }
 
+# 一条命令回答「为什么指令不回、消息不回」：
+#   1) 端口/进程有没有起来   2) OneBot 3001 通不通
+#   3) AstrBot 配置里白名单/管理员到底长什么样   4) 日志里是不是白名单把事件丢了
+diag() {
+  echo "astr 脚本版本 $VER"
+  running && echo "AstrBot: 运行中（pid $(pid_of)）" || echo "AstrBot: 没在跑（astr start）"
+  code=$(curl -s -o /dev/null -m 4 -w '%{http_code}' http://127.0.0.1:6185/ 2>/dev/null || echo 000)
+  echo "面板 6185 → HTTP $code"
+  for p in 3000 3001; do
+    c=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$p/" 2>/dev/null || echo 000)
+    [ "$c" != "000" ] && echo "OneBot $p: 通($c)" || echo "OneBot $p: 不通（QQ 没登录或 hook 没接上）"
+  done
+  # 配置摘要：白名单是否开启、里面到底有什么、管理员是谁、平台怎么连的
+  mkdir -p "$ROOTFS/root/.arkbox" 2>/dev/null
+  cat > "$ROOTFS/root/.arkbox/diag.py" <<'PY'
+import json, os
+p = "/root/AstrBot/data/cmd_config.json"
+print("-- 配置", p)
+if not os.path.exists(p):
+    print("  ! 配置文件不存在（AstrBot 还没初始化，先 astr start 一次）")
+else:
+    c = json.load(open(p, encoding="utf-8"))
+    ps = c.get("platform_settings", {}) or {}
+    print("  enable_id_white_list :", ps.get("enable_id_white_list"))
+    wl = ps.get("id_whitelist") or []
+    print("  id_whitelist         :", wl if wl else "（空 = 不检查）")
+    print("  wl_ignore_admin_group/friend:",
+          ps.get("wl_ignore_admin_on_group"), "/", ps.get("wl_ignore_admin_on_friend"))
+    print("  id_blacklist         :", ps.get("id_blacklist") or "（空）")
+    print("  admins_id            :", c.get("admins_id") or "（空）")
+    for i, pf in enumerate(c.get("platform") or []):
+        t = pf.get("type")
+        keys = {k: pf.get(k) for k in ("ws_reverse_host", "ws_reverse_port", "ws_reverse_url", "host", "port") if k in pf}
+        print(f"  platform[{i}]: {t} {keys}")
+PY
+  "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/diag.py 2>&1 | sed 's/^/  /'
+  echo "-- 日志里的关键行（最近 400 行里找）"
+  if [ -f "$LOG" ]; then
+    grep -aiE "allowlist|event propagation|aiocqhttp|websocket|已连接|连接失败|CQHttp|ws " "$LOG" 2>/dev/null | tail -n 12 | sed 's/^/  /'
+    hit=$(grep -ac "allowlist" "$LOG" 2>/dev/null || echo 0)
+    echo "  allowlist 命中次数：$hit"
+    [ "${hit:-0}" -gt 0 ] && echo "  → 就是白名单把事件丢了：把日志里那个 Session ID 原样加进白名单（或先关掉白名单）"
+  else
+    echo "  还没有日志（astr start 一次）"
+  fi
+  echo "-- 白名单匹配规则"
+  echo "  私聊 UMO 形如：aiocqhttp:FriendMessage:<QQ号>"
+  echo "  群聊 UMO 形如：aiocqhttp:GroupMessage:<群号>（也可以直接填群号）"
+  echo "  只填纯 QQ 号匹配不上私聊；白名单命中前 /sid 也会被丢掉（鸡生蛋）"
+}
+
 case "${1:-status}" in
   start) start ;;
   stop) stop ;;
   restart) stop; sleep 1; start ;;
   status) status ;;
+  diag) diag ;;
   log) tail -n "${2:-80}" "$LOG" 2>/dev/null || echo "还没日志" ;;
   creds) "$STATE/proot-run.sh" /usr/bin/python3 /root/.arkbox/creds.py ;;
   setpw|resetpw)
@@ -127,5 +181,5 @@ case "${1:-status}" in
     ;;
   shell) echo "交互 shell 不可用（App 不是终端）。用：astr run '命令'，例如 astr run 'ls /root'" ;;
   run) shift; "$STATE/proot-run.sh" /bin/bash -c "$*" ;;
-  *) echo "用法: astr {start|stop|restart|status|log|creds|resetpw|shell|run}" ;;
+  *) echo "用法: astr {start|stop|restart|status|diag|log|creds|resetpw|shell|run}" ;;
 esac
